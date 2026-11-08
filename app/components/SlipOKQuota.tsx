@@ -64,13 +64,15 @@ export default function SlipOKQuota({ db }: { db: SupabaseClient }) {
           <p>
             {!data.configured
               ? "ยังไม่ได้เชื่อม SlipOK"
-              : data.usage.used >= 99 ||
-                  data.usage.paused ||
-                  data.providerRemaining === 0
+              : data.usage.used >= 99
                 ? "ใช้การตรวจโดยแอดมินในรอบนี้"
-                : data.providerError
-                  ? "ติดต่อ SlipOK ไม่สำเร็จ ใช้การตรวจโดยแอดมินชั่วคราว"
-                  : "เปิดตรวจสลิปอัตโนมัติ เมื่อผลตรวจผ่านจะเพิ่มเงินให้ลูกค้า"}
+                : data.usage.paused
+                  ? "พักตรวจอัตโนมัติชั่วคราว รอสักครู่แล้วรีเฟรช"
+                  : data.providerRemaining === 0
+                    ? "โควต้า SlipOK หมด ใช้การตรวจโดยแอดมินจนโควต้ากลับมา"
+                    : data.providerError
+                      ? "ติดต่อ SlipOK ไม่สำเร็จ ใช้การตรวจโดยแอดมินชั่วคราว"
+                      : "เปิดตรวจสลิปอัตโนมัติ เมื่อผลตรวจผ่านจะเพิ่มเงินให้ลูกค้า"}
           </p>
           <small>
             นับคำขอที่จองส่งตรวจ รวมกรณีที่ผลไม่ผ่านหรือการเชื่อมต่อไม่แน่นอน

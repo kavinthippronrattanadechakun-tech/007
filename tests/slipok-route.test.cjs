@@ -61,7 +61,10 @@ async function scenario(kind) {
       if (url.includes("/storage/v1/object/slips/"))
         return json({ Key: "slips/test.png" });
       if (url.includes("/rpc/slipok_usage_status"))
-        return json({ used: 99, paused: false });
+        return json({
+          used: kind === "metadata-pause" ? 1 : 99,
+          paused: kind === "metadata-pause",
+        });
       if (url.includes("/rpc/lock_slipok_check"))
         return json(
           ["cap", "busy"].includes(kind)
@@ -116,7 +119,8 @@ async function scenario(kind) {
       throw Error("Unexpected HTTP: " + new URL(url).pathname);
     };
     let response;
-    if (kind === "metadata-cap") response = await route.GET();
+    if (kind === "metadata-cap" || kind === "metadata-pause")
+      response = await route.GET();
     else {
       const form = new FormData();
       form.append("amount", "100");
@@ -210,4 +214,12 @@ test("an already reviewed or unrecordable upload never consumes a check", async 
   assert.equal(r.consumed, 0);
   assert.equal(r.checks, 0);
   assert.equal(r.credits, 0);
+});
+
+test("temporary provider pause is reported separately from the hard monthly cap", async () => {
+  const r = await scenario("metadata-pause");
+  assert.equal(r.body.mode, "manual");
+  assert.equal(r.body.reason, "unavailable");
+  assert.equal(r.checks, 0);
+  assert.equal(r.quotaReads, 0);
 });

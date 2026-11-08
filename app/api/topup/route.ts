@@ -23,8 +23,13 @@ export async function GET() {
       p_day: config.day,
     });
     if (error) throw error;
-    if (data.used >= 99 || data.paused)
+    if (data.used >= 99)
       return Response.json({ mode: "manual", reason: "quota" });
+    if (data.paused)
+      return Response.json(
+        { mode: "manual", reason: "unavailable" },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     if (!quotaCache || quotaCache.until < Date.now())
       quotaCache = {
         until: Date.now() + 30000,
