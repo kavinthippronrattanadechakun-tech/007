@@ -71,14 +71,14 @@ test("wrong/malformed amount, bank, date and reference are not creditable", () =
     assert.throws(() => parseSlipOK(v, expected), SlipOKError);
   }
 });
-test("request always enables recipient and duplicate checks and includes expected amount", async () => {
+test("request always enables recipient and duplicate checks and reads actual amount before comparing locally", async () => {
   const original = globalThis.fetch;
   try {
     globalThis.fetch = async (url, options) => {
       assert.equal(url, "https://api.slipok.com/api/line/apikey/123");
       assert.equal(options.headers["x-authorization"], "test-key");
       assert.equal(options.body.get("log"), "true");
-      assert.equal(options.body.get("amount"), "100");
+      assert.equal(options.body.get("amount"), null);
       assert(options.body.get("files") instanceof File);
       assert.equal(options.redirect, "error");
       return new Response(JSON.stringify(valid()), {
@@ -172,4 +172,18 @@ test("configuration accepts copied official endpoint URLs and quoted values with
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
   }
+});
+
+test("verified actual amount can be cached before declared amount comparison", () => {
+  const v = valid();
+  v.data.amount = 50;
+  assert.throws(() => parseSlipOK(v, expected), SlipOKError);
+  assert.equal(parseSlipOK(v, expected, false).amount, 50);
+  const duplicate = valid();
+  duplicate.success = false;
+  duplicate.code = 1012;
+  assert.throws(
+    () => parseSlipOK(duplicate, expected, false),
+    (e) => e.providerCode === 1012 && e.reference === "TESTREF123",
+  );
 });
