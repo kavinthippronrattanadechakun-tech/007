@@ -9,6 +9,7 @@ export default function Catalog({
   onBuy,
   email,
   onEmail,
+  authChecking = false,
 }: {
   products: Product[];
   categories: Category[];
@@ -17,12 +18,15 @@ export default function Catalog({
   onBuy: (p: Product) => void;
   email: string;
   onEmail: (v: string) => void;
+  authChecking?: boolean;
 }) {
   const [path, setPath] = useState<string[]>([]),
-    [stock, setStock] = useState<Record<string, number>>({});
+    [stock, setStock] = useState<Record<string, number>>({}),
+    [routeReady, setRouteReady] = useState(false);
   useEffect(() => {
     const sync = () => {
       const parts = window.location.hash.slice(1).split("/");
+      setRouteReady(true);
       setPath(
         parts[0] === "catalog" ? parts.slice(1).map(decodeURIComponent) : [],
       );
@@ -86,6 +90,12 @@ export default function Catalog({
           ? "กำลังตรวจจำนวนคงเหลือ"
           : `คงเหลือ ${stock[p.id]} สิทธิ์`;
   }
+  if (!routeReady)
+    return (
+      <section className="catalog panel" aria-busy="true">
+        <p role="status">กำลังโหลดสินค้า…</p>
+      </section>
+    );
   return (
     <section className="catalog">
       <nav className="catalog-breadcrumb" aria-label="เส้นทางสินค้า">
@@ -208,7 +218,13 @@ export default function Catalog({
                       : "ซื้อแพ็กเกจนี้"}
                 </button>
               </div>
-              {!user && <p>กรุณาเข้าสู่ระบบก่อนสั่งซื้อ</p>}
+              {!user && (
+                <p>
+                  {authChecking
+                    ? "กำลังตรวจสอบบัญชี…"
+                    : "กรุณาเข้าสู่ระบบก่อนสั่งซื้อ"}
+                </p>
+              )}
             </div>
           </article>
         </>
