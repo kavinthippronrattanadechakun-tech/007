@@ -23,4 +23,10 @@ export const defaultSettings = {
 };
 export type StoreSettings = typeof defaultSettings;
 
-export type Category = { id: string; name: string; sort_order: number };
+export type Category = {
+  id: string;
+  name: string;
+  sort_order: number;
+  description: string;
+  image_url: string;
+};

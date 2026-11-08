@@ -7,6 +7,7 @@ import {
 } from "@supabase/supabase-js";
 import { supabaseUrl, authErrorMessage } from "../lib/supabase-config";
 import AdminStore from "./components/AdminStore";
+import Catalog from "./components/Catalog";
 import {
   defaultSettings,
   type StoreSettings,
@@ -416,85 +417,15 @@ export default function Home() {
           </>
         )}
         {(!user || tab === "shop") && (
-          <section>
-            <div className="section-title">
-              <h2>
-                <ShoppingBag size={22} /> สินค้าและแพ็กเกจ
-              </h2>
-              <p>แพ็กเกจจะเปิดขายหลังตรวจสอบสิทธิ์การจำหน่ายและตั้งค่าสต็อก</p>
-            </div>
-            <nav className="tabs category-tabs" aria-label="หมวดสินค้า">
-              <button
-                className={category === "all" ? "selected" : ""}
-                onClick={() => setCategory("all")}
-              >
-                ทั้งหมด
-              </button>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  className={category === c.id ? "selected" : ""}
-                  onClick={() => setCategory(c.id)}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </nav>
-            {category !== "all" &&
-              !products.some((p) => p.category_id === category) && (
-                <p>ยังไม่มีสินค้าในหมวดนี้</p>
-              )}
-            <div className="grid">
-              {products
-                .filter((p) => category === "all" || p.category_id === category)
-                .map((p) => (
-                  <article className="panel product" key={p.id}>
-                    {p.image_url && (
-                      <img
-                        className="product-image"
-                        src={p.image_url}
-                        alt={p.title}
-                        loading="lazy"
-                      />
-                    )}
-                    <div className="product-top">
-                      <span className="product-symbol">
-                        {p.title.includes("Netflix")
-                          ? "N"
-                          : p.title.includes("Gemini")
-                            ? "✦"
-                            : "✳"}
-                      </span>
-                      <span className="status">
-                        {p.active ? "พร้อมสั่งซื้อ" : "ยังไม่เปิดขาย"}
-                      </span>
-                    </div>
-                    <h3>{p.title}</h3>
-                    <p>{p.description}</p>
-                    <div className="product-bottom">
-                      <strong>฿{p.price}</strong>
-                      <button
-                        disabled={!user || !p.active || busy}
-                        onClick={() => buy(p)}
-                      >
-                        {p.active ? "ซื้อเลย" : "ยังไม่เปิดขาย"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-            </div>
-            {user && (
-              <label className="email-label">
-                อีเมลลูกค้าสำหรับรายการที่ต้องใช้เมล
-                <input
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="customer@gmail.com"
-                />
-              </label>
-            )}
-          </section>
+          <Catalog
+            products={products}
+            categories={categories}
+            user={!!user}
+            busy={busy}
+            onBuy={buy}
+            email={customerEmail}
+            onEmail={setCustomerEmail}
+          />
         )}
         {user && tab === "topup" && (
           <section className="panel">
