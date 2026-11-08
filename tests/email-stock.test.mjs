@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {parseEmailStock} from '../lib/email-stock.ts';
+test('multiple emails retain their own quantities and delivery details',()=>{assert.deepEqual(parseEmailStock('A@example.com | 4 | หมายเหตุแรก\\nบรรทัดสอง\nb@example.com | 3 | code | instructions'),[{email:'a@example.com',remaining:4,delivery_info:'หมายเหตุแรก\nบรรทัดสอง'},{email:'b@example.com',remaining:3,delivery_info:'code | instructions'}]);});
+test('reject bad or duplicate email, zero/fractional/overflow quantity and missing delivery',()=>{for(const value of ['bad | 1 | info','a@example.com | 0 | info','a@example.com | 1.5 | info','a@example.com | 100001 | info','a@example.com | 2 |','a@example.com | 2 | x\nA@example.com | 1 | y','',Array.from({length:201},(_,i)=>`a${i}@example.com | 1 | info`).join('\n')])assert.throws(()=>parseEmailStock(value));});

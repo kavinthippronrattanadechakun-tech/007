@@ -11,6 +11,7 @@ import {
   defaultSettings,
   type StoreSettings,
   type Product,
+  type Category,
 } from "../lib/store";
 import {
   Wallet,
@@ -68,6 +69,18 @@ export default function Home() {
     [busy, setBusy] = useState(false),
     [bank, setBank] = useState({ bank: "", name: "", number: "" }),
     [tab, setTab] = useState("shop");
+  const [categories, setCategories] = useState<Category[]>([]),
+    [category, setCategory] = useState("all");
+  async function loadCategories() {
+    const s = db();
+    if (!s) return;
+    const { data } = await s
+      .from("product_categories")
+      .select("*")
+      .order("sort_order")
+      .order("name");
+    if (data) setCategories(data);
+  }
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
   async function loadSettings() {
     const s = db();
@@ -112,6 +125,7 @@ export default function Home() {
   }
   useEffect(() => {
     loadSettings();
+    loadCategories();
     const s = db();
     if (!s) return;
     s.auth.getUser().then(({ data }) => {
@@ -368,42 +382,65 @@ export default function Home() {
               </h2>
               <p>แพ็กเกจจะเปิดขายหลังตรวจสอบสิทธิ์การจำหน่ายและตั้งค่าสต็อก</p>
             </div>
-            <div className="grid">
-              {products.map((p) => (
-                <article className="panel product" key={p.id}>
-                  {p.image_url && (
-                    <img
-                      className="product-image"
-                      src={p.image_url}
-                      alt={p.title}
-                      loading="lazy"
-                    />
-                  )}
-                  <div className="product-top">
-                    <span className="product-symbol">
-                      {p.title.includes("Netflix")
-                        ? "N"
-                        : p.title.includes("Gemini")
-                          ? "✦"
-                          : "✳"}
-                    </span>
-                    <span className="status">
-                      {p.active ? "พร้อมสั่งซื้อ" : "ยังไม่เปิดขาย"}
-                    </span>
-                  </div>
-                  <h3>{p.title}</h3>
-                  <p>{p.description}</p>
-                  <div className="product-bottom">
-                    <strong>฿{p.price}</strong>
-                    <button
-                      disabled={!user || !p.active || busy}
-                      onClick={() => buy(p)}
-                    >
-                      {p.active ? "ซื้อเลย" : "ยังไม่เปิดขาย"}
-                    </button>
-                  </div>
-                </article>
+            <nav className="tabs category-tabs" aria-label="หมวดสินค้า">
+              <button
+                className={category === "all" ? "selected" : ""}
+                onClick={() => setCategory("all")}
+              >
+                ทั้งหมด
+              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  className={category === c.id ? "selected" : ""}
+                  onClick={() => setCategory(c.id)}
+                >
+                  {c.name}
+                </button>
               ))}
+            </nav>
+            {category !== "all" &&
+              !products.some((p) => p.category_id === category) && (
+                <p>ยังไม่มีสินค้าในหมวดนี้</p>
+              )}
+            <div className="grid">
+              {products
+                .filter((p) => category === "all" || p.category_id === category)
+                .map((p) => (
+                  <article className="panel product" key={p.id}>
+                    {p.image_url && (
+                      <img
+                        className="product-image"
+                        src={p.image_url}
+                        alt={p.title}
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="product-top">
+                      <span className="product-symbol">
+                        {p.title.includes("Netflix")
+                          ? "N"
+                          : p.title.includes("Gemini")
+                            ? "✦"
+                            : "✳"}
+                      </span>
+                      <span className="status">
+                        {p.active ? "พร้อมสั่งซื้อ" : "ยังไม่เปิดขาย"}
+                      </span>
+                    </div>
+                    <h3>{p.title}</h3>
+                    <p>{p.description}</p>
+                    <div className="product-bottom">
+                      <strong>฿{p.price}</strong>
+                      <button
+                        disabled={!user || !p.active || busy}
+                        onClick={() => buy(p)}
+                      >
+                        {p.active ? "ซื้อเลย" : "ยังไม่เปิดขาย"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
             </div>
             {user && (
               <label className="email-label">
@@ -497,7 +534,7 @@ export default function Home() {
           <AdminStore
             db={db()!}
             onChanged={async () => {
-              await Promise.all([load(user), loadSettings()]);
+              await Promise.all([load(user), loadSettings(), loadCategories()]);
             }}
           />
         )}

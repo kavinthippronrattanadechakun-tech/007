@@ -6,6 +6,7 @@ export type Product = {
   active: boolean;
   delivery_type: string;
   image_url: string;
+  category_id: string | null;
 };
 export const defaultSettings = {
   bank_name: "",
@@ -21,3 +22,5 @@ export const defaultSettings = {
     "© PremiumHub · ร้านอิสระ ไม่ได้เป็นตัวแทนอย่างเป็นทางการของแบรนด์ที่ระบุ · รับเคลมตามเงื่อนไขที่ประกาศ",
 };
 export type StoreSettings = typeof defaultSettings;
+
+export type Category = { id: string; name: string; sort_order: number };

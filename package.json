@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:admin": "node tests/admin-store.cjs"
+    "test:admin": "node tests/admin-store.cjs",
+    "test:stock": "node --experimental-strip-types --test tests/email-stock.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

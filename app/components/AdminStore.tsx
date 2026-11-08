@@ -1,9 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import EmailStock from "./EmailStock";
+import AdminCategories from "./AdminCategories";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   defaultSettings,
   type Product,
+  type Category,
   type StoreSettings,
 } from "../../lib/store";
 type Stock = { id: string; secret: string; order_id: string | null };
@@ -15,6 +18,7 @@ const emptyProduct = (): Product => ({
   active: false,
   delivery_type: "manual",
   image_url: "",
+  category_id: null,
 });
 const labels: Record<keyof StoreSettings, string> = {
   bank_name: "ชื่อธนาคาร",
@@ -36,6 +40,7 @@ export default function AdminStore({
 }) {
   const [section, setSection] = useState("products"),
     [products, setProducts] = useState<Product[]>([]),
+    [categories, setCategories] = useState<Category[]>([]),
     [product, setProduct] = useState<Product>(emptyProduct),
     [editing, setEditing] = useState(false),
     [settings, setSettings] = useState<StoreSettings>(defaultSettings),
@@ -50,12 +55,19 @@ export default function AdminStore({
     [message, setMessage] = useState(""),
     [image, setImage] = useState<File | null>(null);
   async function load() {
-    const [p, s] = await Promise.all([
+    const [p, s, c] = await Promise.all([
       db.from("products").select("*").order("title"),
       db.from("store_settings").select("*").eq("id", true).single(),
+      db
+        .from("product_categories")
+        .select("*")
+        .order("sort_order")
+        .order("name"),
     ]);
     if (p.error) throw p.error;
     if (s.error) throw s.error;
+    if (c.error) throw c.error;
+    setCategories(c.data || []);
     setProducts(p.data || []);
     const { id, ...value } = s.data;
     setSettings({ ...defaultSettings, ...value });
@@ -178,6 +190,7 @@ export default function AdminStore({
         active: product.active,
         delivery_type: product.delivery_type,
         image_url: imageUrl,
+        category_id: product.category_id || null,
       };
       const result = editing
         ? await db
@@ -300,6 +313,7 @@ export default function AdminStore({
         {[
           ["products", "สินค้าและราคา"],
           ["stock", "สต็อกสินค้า"],
+          ["categories", "หมวดหมู่สินค้า"],
           ["settings", "ข้อความหน้าร้าน"],
           ["bank", "บัญชีธนาคาร"],
         ].map(([id, name]) => (
@@ -325,6 +339,16 @@ export default function AdminStore({
         <p>กำลังโหลดหลังบ้าน…</p>
       ) : (
         <fieldset disabled={busy} className="admin-fieldset">
+          {section === "categories" && (
+            <AdminCategories
+              db={db}
+              categories={categories}
+              onChanged={async () => {
+                await load();
+                await onChanged();
+              }}
+            />
+          )}
           {section === "products" && (
             <div className="admin-columns">
               <div>
@@ -400,6 +424,26 @@ export default function AdminStore({
                   />
                 </label>
                 <label>
+                  หมวดสินค้า
+                  <select
+                    aria-label="หมวดสินค้า"
+                    value={product.category_id || ""}
+                    onChange={(e) =>
+                      setProduct({
+                        ...product,
+                        category_id: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">ยังไม่จัดหมวด</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   วิธีส่งสินค้า
                   <select
                     value={product.delivery_type}
@@ -408,7 +452,7 @@ export default function AdminStore({
                     }
                   >
                     <option value="manual">ส่งสินค้าเอง</option>
-                    <option value="code">ส่งโค้ดจากสต็อกอัตโนมัติ</option>
+                    <option value="code">ส่งโค้ด/อีเมลจากสต็อกอัตโนมัติ</option>
                   </select>
                 </label>
                 <label className="checkbox">
@@ -483,13 +527,15 @@ export default function AdminStore({
               {selected && (
                 <>
                   <p>
-                    คงเหลือ <b>{counts.available}</b> รายการ · ขายแล้ว{" "}
+                    คงเหลือ <b>{counts.available}</b> โค้ดเดิม · ขายแล้ว{" "}
                     <b>{counts.sold}</b> รายการ
                   </p>
                   <p>
                     ใช้โค้ดจากสต็อกอัตโนมัติเมื่อสินค้าตั้งวิธีส่งเป็น
-                    “ส่งโค้ดจากสต็อกอัตโนมัติ”
+                    “ส่งโค้ด/อีเมลจากสต็อกอัตโนมัติ”
                   </p>
+                  <EmailStock key={selected} db={db} productId={selected} />
+                  <h3>สต็อกโค้ดแบบเดิม (1 โค้ดต่อการซื้อ)</h3>
                   <form onSubmit={addStock}>
                     <label>
                       เติมสต็อก (1 โค้ดต่อบรรทัด สูงสุด 200 รายการ)
