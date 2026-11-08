@@ -41,6 +41,9 @@ async function scenario(kind) {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service";
     process.env.EASYSLIP_API_KEY = "test-provider";
     delete process.env.SLIP_AUTO_VERIFY_ENABLED;
+    delete process.env.SLIPVERIFY_API_TOKEN;
+    if (kind.startsWith("nearby"))
+      process.env.SLIPVERIFY_API_TOKEN = "test-nearby";
     delete process.env.EASYSLIP_RECEIVER_BANK_CODE;
     if (kind === "manual") delete process.env.EASYSLIP_API_KEY;
     globalThis.fetch = async (input, options = {}) => {
@@ -59,6 +62,25 @@ async function scenario(kind) {
             : json(JSON.parse(options.body).p_id);
       if (url.includes("/storage/v1/object/slips/"))
         return json({ Key: "slips/test.png" });
+      if (url === "https://api.nearbyshop.xyz/slipVerify/v2") {
+        providerCalls++;
+        return json({
+          status: "success",
+          data: {
+            trans_id: "TESTREF123",
+            amount: 100,
+            date_time: new Date(Date.now() - 60000).toISOString(),
+            receiver: {
+              name: "นาย ทดสอบ",
+              bank_code: "014",
+              details: {
+                account_no:
+                  kind === "nearby-partial" ? "xxx5678" : "0012345678",
+              },
+            },
+          },
+        });
+      }
       if (url === "https://api.easyslip.com/v2/verify/bank") {
         providerCalls++;
         if (kind === "offline") throw Error("offline");
@@ -165,4 +187,14 @@ test("without a provider key the existing manual workflow stays explicit", async
   assert.equal(r.body.status, "pending");
   assert.equal(r.providerCalls, 0);
   assert.equal(r.credits, 0);
+});
+
+test("SlipVerify is selected with its token and incomplete receiver evidence stays pending", async () => {
+  const valid = await scenario("nearby-valid");
+  assert.equal(valid.body.status, "approved");
+  assert.equal(valid.credits, 1);
+  assert.equal(valid.providerCalls, 1);
+  const partial = await scenario("nearby-partial");
+  assert.equal(partial.body.status, "pending");
+  assert.equal(partial.credits, 0);
 });

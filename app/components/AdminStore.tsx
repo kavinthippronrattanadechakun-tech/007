@@ -38,12 +38,16 @@ export default function AdminStore({
   db: SupabaseClient;
   onChanged: () => Promise<void>;
 }) {
-  const [slipMode, setSlipMode] = useState("manual");
+  const [slipMode, setSlipMode] = useState("manual"),
+    [slipProvider, setSlipProvider] = useState("");
   useEffect(() => {
     fetch("/api/topup")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data) setSlipMode(data.mode);
+        if (data) {
+          setSlipMode(data.mode);
+          setSlipProvider(data.provider || "");
+        }
       })
       .catch(() => {});
   }, []);
@@ -640,8 +644,8 @@ export default function AdminStore({
               {section === "bank" && (
                 <p role="status">
                   {slipMode === "automatic"
-                    ? "ตรวจสลิปอัตโนมัติ: เปิดใช้งาน EasySlip (ต้องยืนยันธุรกรรมผ่านก่อนเพิ่มยอด)"
-                    : "ตรวจสลิป: รอผู้ดูแล ระบบอัตโนมัติยังไม่ได้เชื่อม EasySlip"}
+                    ? `ตรวจสลิปอัตโนมัติ: ${slipProvider} (เพิ่มยอดเฉพาะผลตรวจที่ครบถ้วนและผ่านเงื่อนไข)`
+                    : "ตรวจสลิป: รอผู้ดูแล ระบบอัตโนมัติยังไม่ได้เชื่อมผู้ให้บริการ"}
                 </p>
               )}
               {section === "bank" && (

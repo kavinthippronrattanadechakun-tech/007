@@ -6,6 +6,8 @@ import {
   bankCodeForName,
   isSlipImage,
   SlipCheckError,
+  validateSlipVerify,
+  verifyNearbySlip,
 } from "../lib/slip-verification.ts";
 const now = Date.parse("2026-11-08T08:00:00Z");
 const expected = {
@@ -135,6 +137,66 @@ test("verification sends explicit duplicate, receiver and amount checks; network
         "test-key",
       ),
       (e) => e.retryable === true,
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+function nearbyValid() {
+  return {
+    status: "success",
+    data: {
+      trans_id: "REALREF456",
+      amount: 100,
+      date_time: "2026-11-08T14:50:00+07:00",
+      receiver: {
+        name: "ทดสอบ",
+        bank_code: "014",
+        details: { account_no: "0012345678" },
+      },
+    },
+  };
+}
+test("SlipVerify alternative requires a full recipient identity and transaction evidence", () => {
+  assert.equal(
+    validateSlipVerify(nearbyValid(), expected).reference,
+    "REALREF456",
+  );
+  for (const mutate of [
+    (v) => (v.data.receiver.details.account_no = "xxxx5678"),
+    (v) => (v.data.receiver.bank_code = "004"),
+    (v) => (v.data.receiver.name = "คนอื่น"),
+    (v) => (v.data.amount = 200),
+    (v) => (v.data.date_time = "2026-11-08 14:50:00"),
+    (v) => (v.data.trans_id = ""),
+  ]) {
+    const v = nearbyValid();
+    mutate(v);
+    assert.throws(() => validateSlipVerify(v, expected), SlipCheckError);
+  }
+});
+test("SlipVerify posts all receiver constraints and does not approve a masked receiver", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, "https://api.nearbyshop.xyz/slipVerify/v2");
+      assert.equal(options.body.get("expected_account_no"), "0012345678");
+      assert.equal(options.body.get("expected_bank_code"), "014");
+      assert.equal(options.body.get("expected_receiver_name"), "นาย ทดสอบ");
+      return new Response(JSON.stringify(nearbyValid()), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    assert.equal(
+      (
+        await verifyNearbySlip(
+          new File(["test"], "test.png", { type: "image/png" }),
+          expected,
+          "test-token",
+        )
+      ).reference,
+      "REALREF456",
     );
   } finally {
     globalThis.fetch = original;

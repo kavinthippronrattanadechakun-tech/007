@@ -161,3 +161,109 @@ export function isSlipImage(bytes: Uint8Array, type: string) {
           String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
         : false;
 }
+
+export function validateSlipVerify(value: unknown, expected: SlipExpectation) {
+  const body = value as any,
+    data = body?.data;
+  if (body?.status !== "success") {
+    const code = String(body?.code || "").toUpperCase();
+    if (code.includes("DUPLICATE") || code.includes("REPLAY"))
+      throw new SlipCheckError("สลิปนี้เคยถูกใช้แล้ว");
+    if (code.startsWith("RECEIVER_") && code.endsWith("_MISMATCH"))
+      throw new SlipCheckError("บัญชีผู้รับเงินไม่ตรงกับบัญชีร้านค้า");
+    throw new SlipCheckError(
+      "SlipVerify ยังยืนยันธุรกรรมไม่ได้ รายการยังไม่เพิ่มยอด กรุณาติดต่อร้านค้า",
+      true,
+    );
+  }
+  const receiver = data?.receiver,
+    account = receiver?.details?.account_no || receiver?.account_no;
+  const bankCode =
+    typeof receiver?.bank_code === "string" &&
+    /^\d{3}$/.test(receiver.bank_code)
+      ? receiver.bank_code
+      : bankCodeForName(
+          [receiver?.bank_abbr, receiver?.bank, receiver?.bank_name_th]
+            .filter(Boolean)
+            .join(" "),
+        );
+  if (data?.amount !== expected.amount)
+    throw new SlipCheckError("ยอดโอนในธุรกรรมไม่ตรงกับยอดเติมเงิน");
+  const cleanName = (name: unknown) =>
+    normalized(name).replace(/^(นางสาว|นาง|นาย|นส)/, "");
+  if (
+    !/^[0-9]{5,40}$/.test(digits(account)) ||
+    digits(account) !== digits(expected.accountNumber) ||
+    bankCode !== expected.bankCode ||
+    !cleanName(receiver?.name) ||
+    cleanName(receiver.name) !== cleanName(expected.accountName)
+  )
+    throw new SlipCheckError(
+      "ผลตรวจ SlipVerify ยังยืนยันบัญชีผู้รับได้ไม่ครบถ้วน รายการยังไม่เพิ่มยอด กรุณาติดต่อร้านค้า",
+      true,
+    );
+  if (
+    typeof data?.trans_id !== "string" ||
+    !/^[a-zA-Z0-9_-]{6,200}$/.test(data.trans_id)
+  )
+    throw new SlipCheckError(
+      "ผลตรวจไม่มีเลขอ้างอิงธุรกรรมที่ใช้ป้องกันสลิปซ้ำได้",
+      true,
+    );
+  if (
+    typeof data.date_time !== "string" ||
+    !/(Z|[+-]\d{2}:?\d{2})$/i.test(data.date_time)
+  )
+    throw new SlipCheckError(
+      "ผลตรวจยังระบุวันเวลาธุรกรรมไม่ครบถ้วน รายการยังไม่เพิ่มยอด",
+      true,
+    );
+  const date = Date.parse(data.date_time),
+    now = expected.now ?? Date.now();
+  if (
+    !Number.isFinite(date) ||
+    date > now + 300000 ||
+    date < Math.max(now - 86400000, expected.earliestDate ?? 0)
+  )
+    throw new SlipCheckError(
+      "วันที่โอนไม่อยู่ในช่วงที่รับเติมเงิน กรุณาใช้สลิปโอนใหม่ภายใน 24 ชั่วโมง",
+    );
+  return {
+    reference: data.trans_id.toUpperCase(),
+    amount: expected.amount,
+    transferAt: new Date(date).toISOString(),
+  };
+}
+export async function verifyNearbySlip(
+  file: File,
+  expected: SlipExpectation,
+  token: string,
+) {
+  const body = new FormData();
+  body.append("slip", file);
+  body.append("expected_receiver_name", expected.accountName);
+  body.append("expected_bank_code", expected.bankCode);
+  body.append(
+    "expected_account_no",
+    expected.accountNumber.replace(/[ -]/g, ""),
+  );
+  try {
+    const response = await fetch("https://api.nearbyshop.xyz/slipVerify/v2", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "")}` },
+      body,
+      signal: AbortSignal.timeout(30000),
+      redirect: "error",
+    });
+    const data = await response.json();
+    if (!response.ok && data?.status === "success")
+      throw new SlipCheckError("SlipVerify ตอบกลับไม่สมบูรณ์", true);
+    return validateSlipVerify(data, expected);
+  } catch (e) {
+    if (e instanceof SlipCheckError) throw e;
+    throw new SlipCheckError(
+      "ติดต่อ SlipVerify ไม่ได้ รายการยังไม่เพิ่มยอด กรุณาติดต่อร้านค้า",
+      true,
+    );
+  }
+}

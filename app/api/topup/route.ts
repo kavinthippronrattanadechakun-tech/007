@@ -6,19 +6,29 @@ import {
   bankCodeForName,
   isSlipImage,
   verifySlip,
+  verifyNearbySlip,
   SlipCheckError,
 } from "../../../lib/slip-verification";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
+const selectedProvider = () =>
+  process.env.SLIPVERIFY_API_TOKEN
+    ? "slipverify"
+    : process.env.EASYSLIP_API_KEY
+      ? "easyslip"
+      : null;
 const autoEnabled = () =>
-  !!process.env.EASYSLIP_API_KEY &&
-  process.env.SLIP_AUTO_VERIFY_ENABLED !== "false";
+  !!selectedProvider() && process.env.SLIP_AUTO_VERIFY_ENABLED !== "false";
 export async function GET() {
   return Response.json(
     {
       mode: autoEnabled() ? "automatic" : "manual",
-      provider: autoEnabled() ? "EasySlip" : null,
+      provider: autoEnabled()
+        ? selectedProvider() === "slipverify"
+          ? "SlipVerify"
+          : "EasySlip"
+        : null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );
@@ -102,7 +112,20 @@ export async function POST(req: Request) {
         message: "ส่งสลิปแล้ว รอผู้ดูแลตรวจสอบธุรกรรมจริง",
       });
     try {
-      const result = await verifySlip(
+      const provider = selectedProvider()!;
+      const audit = await db
+        .from("topups")
+        .update({ verification_provider: provider })
+        .eq("id", id)
+        .eq("status", "pending");
+      if (audit.error)
+        throw new SlipCheckError(
+          "บันทึกการตรวจสลิปไม่สำเร็จ รายการยังไม่เพิ่มยอด",
+          true,
+        );
+      const result = await (
+        provider === "slipverify" ? verifyNearbySlip : verifySlip
+      )(
         file,
         {
           amount,
@@ -112,7 +135,9 @@ export async function POST(req: Request) {
           bankCode: bankCode!,
           earliestDate: Date.parse(auth.user.created_at) - 300000,
         },
-        process.env.EASYSLIP_API_KEY!,
+        (provider === "slipverify"
+          ? process.env.SLIPVERIFY_API_TOKEN
+          : process.env.EASYSLIP_API_KEY)!,
       );
       const { error } = await db.rpc("credit_verified_topup", {
         p_id: id,
