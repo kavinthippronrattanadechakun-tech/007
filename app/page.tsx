@@ -79,7 +79,12 @@ export default function Home() {
       .single();
     if (data) {
       const { id, ...values } = data;
-      setSettings(values);
+      setSettings({ ...defaultSettings, ...values });
+      setBank({
+        bank: values.bank_name || "",
+        name: values.bank_account_name || "",
+        number: values.bank_account_number || "",
+      });
     }
   }
   const ready = !!db();
@@ -107,10 +112,6 @@ export default function Home() {
   }
   useEffect(() => {
     loadSettings();
-    fetch("/api/bank")
-      .then((r) => r.json())
-      .then(setBank)
-      .catch(() => {});
     const s = db();
     if (!s) return;
     s.auth.getUser().then(({ data }) => {

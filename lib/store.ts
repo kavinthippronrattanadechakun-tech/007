@@ -8,6 +8,9 @@ export type Product = {
   image_url: string;
 };
 export const defaultSettings = {
+  bank_name: "",
+  bank_account_name: "",
+  bank_account_number: "",
   brand_name: "PREMIUM HUB",
   hero_title: "พรีเมียมในแบบที่คุณเลือก",
   hero_description:

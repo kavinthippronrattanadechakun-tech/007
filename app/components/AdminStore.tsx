@@ -17,6 +17,9 @@ const emptyProduct = (): Product => ({
   image_url: "",
 });
 const labels: Record<keyof StoreSettings, string> = {
+  bank_name: "ชื่อธนาคาร",
+  bank_account_name: "ชื่อบัญชี",
+  bank_account_number: "เลขบัญชี",
   brand_name: "ชื่อร้าน",
   hero_title: "หัวข้อหน้าร้าน",
   hero_description: "คำอธิบายหน้าร้าน",
@@ -55,7 +58,7 @@ export default function AdminStore({
     if (s.error) throw s.error;
     setProducts(p.data || []);
     const { id, ...value } = s.data;
-    setSettings(value);
+    setSettings({ ...defaultSettings, ...value });
     setSelected((old) => old || p.data?.[0]?.id || "");
   }
   async function loadStock(id: string, offset: number) {
@@ -257,9 +260,33 @@ export default function AdminStore({
   async function saveSettings(e: React.FormEvent) {
     e.preventDefault();
     await run(async () => {
+      if (section === "bank") {
+        const fields = [
+          settings.bank_name,
+          settings.bank_account_name,
+          settings.bank_account_number,
+        ];
+        if (fields.some((v) => v.trim()) && fields.some((v) => !v.trim()))
+          throw Error(
+            "กรุณากรอกข้อมูลบัญชีธนาคารให้ครบทั้ง 3 ช่อง หรือล้างทั้งหมดเพื่อปิดแสดงบัญชี",
+          );
+        if (
+          settings.bank_account_number &&
+          !/^[0-9 -]{5,40}$/.test(settings.bank_account_number)
+        )
+          throw Error("เลขบัญชีต้องเป็นตัวเลข 5–40 ตัว รวมขีดหรือช่องว่างได้");
+      }
       const r = await db
         .from("store_settings")
-        .update(settings)
+        .update(
+          Object.fromEntries(
+            Object.entries(settings).filter(([key]) =>
+              section === "bank"
+                ? key.startsWith("bank_")
+                : !key.startsWith("bank_"),
+            ),
+          ),
+        )
         .eq("id", true)
         .select("id")
         .single();
@@ -274,6 +301,7 @@ export default function AdminStore({
           ["products", "สินค้าและราคา"],
           ["stock", "สต็อกสินค้า"],
           ["settings", "ข้อความหน้าร้าน"],
+          ["bank", "บัญชีธนาคาร"],
         ].map(([id, name]) => (
           <button
             key={id}
@@ -552,31 +580,55 @@ export default function AdminStore({
               )}
             </>
           )}
-          {section === "settings" && (
+          {(section === "settings" || section === "bank") && (
             <form onSubmit={saveSettings}>
-              {(Object.keys(labels) as (keyof StoreSettings)[]).map((key) => (
-                <label key={key}>
-                  {labels[key]}
-                  <textarea
-                    aria-label={labels[key]}
-                    required={key === "brand_name" || key === "hero_title"}
-                    maxLength={
-                      key === "brand_name"
-                        ? 80
-                        : key === "hero_title"
-                          ? 200
-                          : key === "announcement" || key === "contact_text"
-                            ? 1000
-                            : 2000
-                    }
-                    value={settings[key]}
-                    onChange={(e) =>
-                      setSettings({ ...settings, [key]: e.target.value })
-                    }
-                  />
-                </label>
-              ))}
-              <button>บันทึกข้อความหน้าร้าน</button>
+              {section === "bank" && (
+                <p>
+                  ข้อมูลนี้จะแสดงให้ลูกค้าเห็นในหน้าเติมเงิน
+                  ตรวจสอบชื่อและเลขบัญชีให้ถูกต้องก่อนบันทึก
+                  หากต้องการปิดแสดงบัญชี ให้ล้างข้อมูลทั้ง 3 ช่องแล้วบันทึก
+                </p>
+              )}
+              {(Object.keys(labels) as (keyof StoreSettings)[])
+                .filter((key) =>
+                  section === "bank"
+                    ? key.startsWith("bank_")
+                    : !key.startsWith("bank_"),
+                )
+                .map((key) => (
+                  <label key={key}>
+                    {labels[key]}
+                    <textarea
+                      aria-label={labels[key]}
+                      required={key === "brand_name" || key === "hero_title"}
+                      maxLength={
+                        key === "bank_name"
+                          ? 100
+                          : key === "bank_account_name"
+                            ? 120
+                            : key === "bank_account_number"
+                              ? 40
+                              : key === "brand_name"
+                                ? 80
+                                : key === "hero_title"
+                                  ? 200
+                                  : key === "announcement" ||
+                                      key === "contact_text"
+                                    ? 1000
+                                    : 2000
+                      }
+                      value={settings[key]}
+                      onChange={(e) =>
+                        setSettings({ ...settings, [key]: e.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+              <button>
+                {section === "bank"
+                  ? "บันทึกบัญชีธนาคาร"
+                  : "บันทึกข้อความหน้าร้าน"}
+              </button>
             </form>
           )}
         </fieldset>
