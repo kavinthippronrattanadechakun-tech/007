@@ -13,6 +13,7 @@ require.extensions[".ts"] = (m, p) =>
     }).outputText,
     p,
   );
+const fulfill = require("../app/api/admin/orders/fulfill/route.ts");
 const customers = require("../app/api/admin/customers/route.ts"),
   orders = require("../app/api/admin/orders/route.ts"),
   inventory = require("../app/api/admin/orders/inventory/route.ts");
@@ -53,6 +54,8 @@ async function scenario(kind, route, method = "GET", body) {
           return json([
             { id: target, email: "buyer@example.com", balance: 100 },
           ]);
+        if (name === "admin_fulfill_order")
+          return json({ ok: true, already_delivered: false });
         if (name === "admin_order_inventory")
           return json({ kind: "account", can_restock: true });
         if (name === "admin_manage_order_inventory")
@@ -86,11 +89,13 @@ async function scenario(kind, route, method = "GET", body) {
       },
     );
     const module =
-      route === "inventory"
-        ? inventory
-        : route === "orders"
-          ? orders
-          : customers;
+      route === "fulfill"
+        ? fulfill
+        : route === "inventory"
+          ? inventory
+          : route === "orders"
+            ? orders
+            : customers;
     const r = await module[method](req);
     return { status: r.status, body: await r.json(), calls };
   } finally {
@@ -194,4 +199,29 @@ test("inventory actions require admin and validate input before invoking privile
   assert.equal(r.calls[0].payload.p_password, "updated");
   assert.equal(r.calls[0].payload.p_allow_early, true);
   assert.equal((await scenario("ok", "inventory")).status, 200);
+});
+
+test("manual fulfillment requires admin, validates payload and uses authenticated actor", async () => {
+  for (const kind of ["unauth", "nonadmin", "invalid-user"]) {
+    const r = await scenario(kind, "fulfill", "POST", { orderId: target });
+    assert.equal(r.status, 403);
+    assert.equal(r.calls.length, 0);
+  }
+  for (const body of [
+    { orderId: "bad" },
+    { orderId: target, delivery: 12 },
+    { orderId: target, delivery: "x".repeat(16385) },
+  ]) {
+    const r = await scenario("ok", "fulfill", "POST", body);
+    assert.equal(r.status, 400);
+    assert.equal(r.calls.length, 0);
+  }
+  const r = await scenario("ok", "fulfill", "POST", {
+    orderId: target,
+    delivery: "delivery text",
+    actor: "spoofed",
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.calls[0].payload.p_actor, uid);
+  assert.equal(r.calls[0].payload.p_delivery, "delivery text");
 });
