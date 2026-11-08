@@ -22,6 +22,7 @@ const emptyProduct = (): Product => ({
   delivery_type: "manual",
   image_url: "",
   category_id: null,
+  subcategory: "",
   requires_customer_email: false,
   duration_days: null,
 });
@@ -204,6 +205,7 @@ export default function AdminStore({
         delivery_type: product.delivery_type,
         image_url: imageUrl,
         category_id: product.category_id || null,
+        subcategory: product.subcategory || "",
         requires_customer_email: !!product.requires_customer_email,
         duration_days: product.duration_days ?? null,
       };
@@ -553,6 +555,24 @@ export default function AdminStore({
                     ))}
                   </select>
                 </label>
+                <label>
+                  หมวดย่อย ChatGPT
+                  <select
+                    aria-label="หมวดย่อย ChatGPT"
+                    value={product.subcategory || ""}
+                    onChange={(e) =>
+                      setProduct({ ...product, subcategory: e.target.value })
+                    }
+                  >
+                    <option value="">ไม่แบ่งหมวดย่อย</option>
+                    <option value="share4">หาร 4</option>
+                    <option value="share3">หาร 3</option>
+                    <option value="private">ส่วนตัว</option>
+                  </select>
+                </label>
+                <p>
+                  สินค้าที่เลือกหมวดย่อยจะแสดงให้ลูกค้ากดเลือกประเภทก่อนเลือกแพ็กเกจ
+                </p>
                 <label className="checkbox">
                   <input
                     type="checkbox"
