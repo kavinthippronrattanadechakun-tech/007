@@ -17,6 +17,8 @@ type Row = {
   duration_days: number | null;
   expires_at: string | null;
   inventory_action: string | null;
+  fulfillment_type: "manual" | "code";
+  delivered_at: string | null;
 };
 export default function AdminOrders({
   db,
@@ -25,13 +27,24 @@ export default function AdminOrders({
 }: {
   db: SupabaseClient;
   onChanged?: () => Promise<void>;
-  mode?: "orders" | "restock";
+  mode?: "orders" | "restock" | "manual";
 }) {
   const [query, setQuery] = useState(""),
-    [status, setStatus] = useState(mode === "restock" ? "expired" : ""),
+    [status, setStatus] = useState(
+      mode === "restock"
+        ? "expired"
+        : mode === "manual"
+          ? "manual_pending"
+          : "",
+    ),
     [filter, setFilter] = useState({
       q: "",
-      status: mode === "restock" ? "expired" : "",
+      status:
+        mode === "restock"
+          ? "expired"
+          : mode === "manual"
+            ? "manual_pending"
+            : "",
     }),
     [page, setPage] = useState(0),
     [rows, setRows] = useState<Row[]>([]),
@@ -39,7 +52,56 @@ export default function AdminOrders({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0),
-    [clock, setClock] = useState(Date.now());
+    [clock, setClock] = useState(Date.now()),
+    [sending, setSending] = useState<string | null>(null),
+    [deliveryDrafts, setDeliveryDrafts] = useState<Record<string, string>>({}),
+    [notice, setNotice] = useState("");
+  async function markDelivered(o: Row) {
+    if (sending) return;
+    setSending(o.id);
+    setNotice("");
+    try {
+      const { data } = await db.auth.getSession();
+      if (!data.session) throw Error("กรุณาเข้าสู่ระบบใหม่");
+      const r = await fetch("/api/admin/orders/fulfill", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + data.session.access_token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId: o.id,
+            delivery: deliveryDrafts[o.id] ?? o.delivery ?? "",
+          }),
+        }),
+        result = await r.json();
+      if (!r.ok) throw Error(result.error || "บันทึกไม่สำเร็จ");
+      setNotice(
+        result.data.already_delivered
+          ? "รายการนี้จัดส่งแล้ว"
+          : "บันทึกว่าจัดส่งแล้วเรียบร้อย",
+      );
+      setRows((old) =>
+        old.map((row) =>
+          row.id === o.id
+            ? {
+                ...row,
+                status: "delivered",
+                delivered_at: result.data.delivered_at,
+                delivery: deliveryDrafts[o.id] ?? row.delivery,
+              }
+            : row,
+        ),
+      );
+      setRefresh((n) => n + 1);
+      await onChanged?.();
+    } catch (e) {
+      setNotice((e as Error).message);
+    } finally {
+      setSending(null);
+    }
+  }
+
   useEffect(() => {
     const timer = setInterval(() => {
       setClock(Date.now());
@@ -82,10 +144,41 @@ export default function AdminOrders({
   return (
     <section>
       <h3>
-        {mode === "restock"
-          ? "รอรีสต็อกและจัดการสินค้า"
-          : "คำสั่งซื้อของลูกค้า"}
+        {mode === "manual"
+          ? "รายการจัดส่งเอง"
+          : mode === "restock"
+            ? "รอรีสต็อกและจัดการสินค้า"
+            : "คำสั่งซื้อของลูกค้า"}
       </h3>
+      {notice && (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      )}
+      {mode === "manual" && (
+        <>
+          <p>
+            สีแดง = ยังไม่ได้จัดส่ง · สีเขียว = จัดส่งแล้ว
+            ติ๊กเมื่อดำเนินการส่งให้ลูกค้าเรียบร้อย
+          </p>
+          <nav className="tabs" aria-label="รายการจัดส่งเอง">
+            {[
+              ["manual_pending", "ยังไม่ได้จัดส่ง"],
+              ["manual_delivered", "จัดส่งแล้ว"],
+              ["manual_all", "ทั้งหมด"],
+            ].map(([id, label]) => (
+              <button
+                type="button"
+                key={id}
+                className={status === id ? "selected" : ""}
+                onClick={() => selectStatus(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
       {mode === "restock" && (
         <>
           <p>
@@ -147,6 +240,9 @@ export default function AdminOrders({
             </option>
             <option value="restocked">คืนสต็อกแล้ว</option>
             <option value="removed">นำสินค้าออกแล้ว</option>
+            <option value="manual_pending">จัดส่งเอง: ยังไม่ได้จัดส่ง</option>
+            <option value="manual_delivered">จัดส่งเอง: จัดส่งแล้ว</option>
+            <option value="manual_all">จัดส่งเองทั้งหมด</option>
           </select>
         </label>
         <div className="actions">
@@ -169,22 +265,33 @@ export default function AdminOrders({
           <article
             className={
               "order " +
-              (!o.inventory_action &&
-              o.status === "delivered" &&
-              o.expires_at &&
-              Date.parse(o.expires_at) <= clock
-                ? "order-expired"
-                : "")
+              (mode === "manual"
+                ? o.status === "delivered"
+                  ? "order-manual-delivered"
+                  : "order-manual-pending"
+                : !o.inventory_action &&
+                    o.status === "delivered" &&
+                    o.expires_at &&
+                    Date.parse(o.expires_at) <= clock
+                  ? "order-expired"
+                  : "")
             }
             key={o.id}
           >
             <strong>
               {o.product_title} · ฿{o.price}
             </strong>
-            <span>
-              {o.status === "delivered" ? "ส่งสินค้าแล้ว" : "รอดำเนินการ"}
+            <span className={mode === "manual" ? "manual-status" : undefined}>
+              {mode === "manual"
+                ? o.status === "delivered"
+                  ? "จัดส่งแล้ว"
+                  : "ยังไม่ได้จัดส่ง"
+                : o.status === "delivered"
+                  ? "ส่งสินค้าแล้ว"
+                  : "รอดำเนินการ"}
             </span>
-            {!o.inventory_action &&
+            {mode !== "manual" &&
+              !o.inventory_action &&
               o.status === "delivered" &&
               o.expires_at &&
               Date.parse(o.expires_at) <= clock && (
@@ -192,6 +299,42 @@ export default function AdminOrders({
                   หมดอายุแล้ว · รอรีสต็อก
                 </strong>
               )}
+            {mode === "manual" && (
+              <div className="manual-delivery-control">
+                {o.status !== "delivered" && (
+                  <label>
+                    ข้อมูลส่งให้ลูกค้า (ถ้ามี)
+                    <textarea
+                      maxLength={16384}
+                      value={deliveryDrafts[o.id] ?? o.delivery ?? ""}
+                      onChange={(e) =>
+                        setDeliveryDrafts((old) => ({
+                          ...old,
+                          [o.id]: e.target.value,
+                        }))
+                      }
+                      disabled={sending === o.id}
+                    />
+                  </label>
+                )}
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={o.status === "delivered" || sending === o.id}
+                    disabled={!!sending || o.status === "delivered"}
+                    onChange={(e) => {
+                      if (e.target.checked) void markDelivered(o);
+                    }}
+                  />
+                  {o.status === "delivered"
+                    ? "จัดส่งแล้ว"
+                    : "ติ๊กเมื่อจัดส่งแล้ว"}
+                </label>
+                {o.delivered_at && (
+                  <small>เวลาจัดส่ง: {formatOrderDate(o.delivered_at)}</small>
+                )}
+              </div>
+            )}
             <span>บัญชีลูกค้า: {o.user_email}</span>
             {o.customer_email && (
               <span>อีเมลสำหรับรับสินค้า: {o.customer_email}</span>
@@ -206,7 +349,8 @@ export default function AdminOrders({
               วันหมดอายุ:{" "}
               {o.expires_at ? formatOrderDate(o.expires_at) : "ไม่กำหนด"}
             </span>
-            {o.status === "delivered" &&
+            {mode !== "manual" &&
+              o.status === "delivered" &&
               (o.inventory_action ? (
                 <span>
                   {o.inventory_action === "restock"
@@ -234,9 +378,11 @@ export default function AdminOrders({
       )}
       {!busy && !error && !rows.length && (
         <p>
-          {status === "expired"
-            ? "ไม่มีรายการหมดอายุรอรีสต็อก"
-            : "ไม่พบคำสั่งซื้อที่ตรงกับสถานะนี้"}
+          {status === "manual_pending"
+            ? "ไม่มีรายการรอจัดส่ง"
+            : status === "expired"
+              ? "ไม่มีรายการหมดอายุรอรีสต็อก"
+              : "ไม่พบคำสั่งซื้อที่ตรงกับสถานะนี้"}
         </p>
       )}
       <div className="actions">

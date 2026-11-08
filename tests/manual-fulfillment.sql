@@ -1,0 +1,30 @@
+begin;
+do $$
+declare a uuid;u uuid;pm text:='manual-'||gen_random_uuid();pc text:='auto-'||gen_random_uuid();o uuid;o2 uuid;c uuid;r jsonb;expires timestamptz;bal bigint;affected integer;
+begin
+ select id into a from public.profiles where is_admin limit 1;select id into u from public.profiles where not is_admin limit 1;u:=coalesce(u,a);
+ update public.profiles set balance=balance+100 where id=u;perform set_config('request.jwt.claim.sub',u::text,true);
+ insert into public.products(id,title,price,active,delivery_type,duration_days) values(pm,pm,1,true,'manual',7),(pc,pc,1,true,'code',1);
+ insert into public.stock(product_id,secret) values(pc,'test-auto-credential');
+ r:=public.buy_product(pm,'buyer@example.com');o:=(r->>'order_id')::uuid;
+ if (select fulfillment_type from public.orders where id=o)<>'manual' then raise exception 'manual method not snapshotted';end if;
+ select expires_at into expires from public.orders where id=o;select balance into bal from public.profiles where id=u;
+ if (select count(*) from public.admin_order_list(pm,'manual_pending',0))<>1 then raise exception 'pending queue wrong';end if;
+ update public.products set delivery_type='code' where id=pm;
+ if (select count(*) from public.admin_order_list(pm,'manual_pending',0))<>1 then raise exception 'product edit changed historical method';end if;
+ if u<>a then begin perform public.admin_fulfill_order(o,u,'bad actor');raise exception 'nonadmin allowed';exception when raise_exception then if sqlerrm<>'Admin required' then raise;end if;end;end if;
+ perform public.admin_fulfill_order(o,a,'Mail: buyer@example.com');perform public.admin_fulfill_order(o,a,'must not replace history');
+ if not exists(select 1 from public.orders where id=o and status='delivered' and delivered_by=a and delivered_at is not null and delivery='Mail: buyer@example.com' and expires_at=expires) then raise exception 'delivery state/history/expiry wrong';end if;
+ if (select balance from public.profiles where id=u)<>bal then raise exception 'fulfillment changed wallet';end if;
+ if (select count(*) from public.wallet_ledger where source_id=o)<>1 then raise exception 'duplicate charge';end if;
+ if (select count(*) from public.admin_order_list(pm,'manual_pending',0))<>0 or (select count(*) from public.admin_order_list(pm,'manual_delivered',0))<>1 then raise exception 'completed filters wrong';end if;
+ r:=public.buy_product(pc,null);c:=(r->>'order_id')::uuid;
+ begin perform public.admin_fulfill_order(c,a,'bad manual edit');raise exception 'automatic order edited';exception when raise_exception then if sqlerrm<>'Not manual order' then raise;end if;end;
+ update public.products set delivery_type='manual' where id=pm;r:=public.buy_product(pm,null);o2:=(r->>'order_id')::uuid;
+ perform set_config('test.manual_order',o2::text,true);perform set_config('test.manual_actor',a::text,true);
+ if has_function_privilege('authenticated','public.admin_fulfill_order(uuid,uuid,text)','execute') then raise exception 'customer can fulfill';end if;
+ perform set_config('role','authenticated',true);update public.orders set status='processing' where id=o;get diagnostics affected=row_count;if affected<>0 then raise exception 'RLS allowed customer update';end if;perform set_config('role','none',true);
+end$$;
+set local role service_role;
+select (public.admin_fulfill_order(current_setting('test.manual_order')::uuid,current_setting('test.manual_actor')::uuid,'service role delivery')->>'ok')::boolean as actual_service_role_fulfillment;
+rollback;

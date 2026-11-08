@@ -18,6 +18,9 @@ export async function GET(req: Request) {
         "pending_restock",
         "restocked",
         "removed",
+        "manual_pending",
+        "manual_delivered",
+        "manual_all",
       ].includes(status) ||
       !Number.isSafeInteger(page) ||
       page < 0 ||

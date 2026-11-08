@@ -569,6 +569,7 @@ export default function Home({
                   onClick={() => {
                     setTab(id);
                     if (id === "admin") loadPending();
+                    if (id === "orders" && user) void load(user);
                   }}
                 >
                   {label}

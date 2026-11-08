@@ -747,3 +747,28 @@ footer p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.order.order-manual-pending {
+  border: 1px solid #f2a7a7;
+  border-left: 5px solid #d72d2d;
+  background: #fff1f1;
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+}
+.order.order-manual-delivered {
+  border: 1px solid #9dd4ac;
+  border-left: 5px solid #16803b;
+  background: #edfff2;
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+}
+.manual-delivery-control .checkbox {
+  font-size: 16px;
+}
+.order-manual-pending > .manual-status {
+  color: #b91c1c;
+}
+.order-manual-delivered > .manual-status {
+  color: #16803b;
+}
