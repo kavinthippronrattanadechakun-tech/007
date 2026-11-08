@@ -71,6 +71,10 @@ export default function Home() {
     [busy, setBusy] = useState(false),
     [bank, setBank] = useState({ bank: "", name: "", number: "" }),
     [tab, setTab] = useState("shop");
+  const [slipMode, setSlipMode] = useState({
+    mode: "manual",
+    reason: "not_configured",
+  });
   const [categories, setCategories] = useState<Category[]>([]),
     [category, setCategory] = useState("all");
   async function loadCategories() {
@@ -144,6 +148,12 @@ export default function Home() {
     }
     loadSettings();
     loadCategories();
+    fetch("/api/topup")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setSlipMode(data);
+      })
+      .catch(() => {});
     const s = db();
     if (!s) return;
     s.auth.getUser().then(({ data }) => {
@@ -484,8 +494,11 @@ export default function Home() {
               <Upload size={22} /> เติมเงินผ่านธนาคาร
             </h2>
             <p>
-              โอนเงินตามข้อมูลบัญชีที่ร้านประกาศ แล้วอัปโหลดสลิป
-              รอผู้ดูแลตรวจสอบธุรกรรมจริงก่อนเพิ่มยอดเงิน
+              {slipMode.mode === "automatic"
+                ? "โอนเข้าบัญชีร้านแล้วส่งสลิป ระบบตรวจยอด ผู้รับ และสลิปซ้ำก่อนเพิ่มเงินอัตโนมัติ ใช้สลิปโอนใหม่ภายใน 24 ชั่วโมง"
+                : slipMode.reason === "quota"
+                  ? "โควต้าตรวจอัตโนมัติรอบนี้หมดแล้ว ส่งสลิปเพื่อให้แอดมินตรวจจากรายการโอนจริงและเพิ่มยอด"
+                  : "โอนเข้าบัญชีร้านแล้วส่งสลิป รอผู้ดูแลตรวจสอบธุรกรรมจริงก่อนเพิ่มยอด"}
             </p>
             <div className="bank">
               {bank.bank && bank.name && bank.number
@@ -505,7 +518,7 @@ export default function Home() {
                 />
               </label>
               <label>
-                รูปสลิป (JPG, PNG, WEBP ไม่เกิน 5 MB)
+                รูปสลิป (JPG, PNG, WEBP ไม่เกิน 4 MB)
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -513,7 +526,11 @@ export default function Home() {
                   onChange={(e) => setSlip(e.target.files?.[0] || null)}
                 />
               </label>
-              <button disabled={busy || !ready}>ส่งสลิปเพื่อรอตรวจสอบ</button>
+              <button disabled={busy || !ready}>
+                {slipMode.mode === "automatic"
+                  ? "ตรวจสลิปและเติมเงิน"
+                  : "ส่งสลิปให้แอดมินตรวจสอบ"}
+              </button>
             </form>
             <h3>ประวัติเติมเงิน</h3>
             {topups.map((t) => (
