@@ -1,0 +1,30 @@
+begin;
+do $$
+declare a uuid;u uuid;pid text:='queue-'||gen_random_uuid();b uuid;expired_order uuid;active_order uuid;processed_order uuid;removed_order uuid;processing_order uuid;r jsonb;
+begin
+ select id into a from public.profiles where is_admin limit 1;select id into u from public.profiles limit 1;
+ insert into public.products(id,title,price,active,delivery_type,duration_days) values(pid,pid,1,true,'code',1);
+ insert into public.email_stock_batches(product_id,email,password,remaining,delivery_info) values(pid,'queue@example.com','original',0,'') returning id into b;
+ insert into public.orders(user_id,product_id,price,status,stock_batch_id,created_at) values(u,pid,1,'delivered',b,now()-interval '48 hours') returning id into expired_order;
+ insert into public.orders(user_id,product_id,price,status,stock_batch_id) values(u,pid,1,'delivered',b) returning id into active_order;
+ insert into public.orders(user_id,product_id,price,status,stock_batch_id,created_at) values(u,pid,1,'delivered',b,now()-interval '48 hours') returning id into processed_order;
+ insert into public.orders(user_id,product_id,price,status,stock_batch_id,created_at) values(u,pid,1,'delivered',b,now()-interval '48 hours') returning id into removed_order;
+ insert into public.orders(user_id,product_id,price,status,created_at) values(u,pid,1,'processing',now()-interval '48 hours') returning id into processing_order;
+ insert into public.order_inventory_actions(order_id,actor_id,action) values(processed_order,a,'restock'),(removed_order,a,'remove');
+ if (select count(*) from public.admin_order_list(pid,'expired',0))<>1 then raise exception 'expired filter wrong';end if;
+ if (select count(*) from public.admin_order_list(pid,'active',0))<>1 then raise exception 'active filter wrong';end if;
+ if (select count(*) from public.admin_order_list(pid,'processing',0))<>1 then raise exception 'processing filter wrong';end if;
+ if (select count(*) from public.admin_order_list(pid,'pending_restock',0))<>2 then raise exception 'pending filter wrong';end if;
+ if (select count(*) from public.admin_order_list(pid,'restocked',0))<>1 or (select count(*) from public.admin_order_list(pid,'removed',0))<>1 then raise exception 'completed filters wrong';end if;
+ r:=public.admin_order_inventory(active_order,a);
+ if not (r->>'can_restock')::boolean or not(r->>'requires_early_confirmation')::boolean then raise exception 'early return not available';end if;
+ begin perform public.admin_manage_order_inventory(active_order,a,'restock','','',false);raise exception 'early return without confirmation';exception when raise_exception then if sqlerrm<>'Early confirmation required' then raise;end if;end;
+ perform public.admin_manage_order_inventory(active_order,a,'restock','next-password','',true);
+ perform public.admin_manage_order_inventory(active_order,a,'restock','next-password','',true);
+ if (select remaining from public.email_stock_batches where id=b)<>1 then raise exception 'early return duplicate';end if;
+ if (select count(*) from public.admin_order_list(pid,'active',0))<>0 or (select count(*) from public.admin_order_list(pid,'restocked',0))<>2 then raise exception 'queue not updated after return';end if;
+ perform set_config('test.queue_order',active_order::text,true);perform set_config('test.queue_admin',a::text,true);
+end$$;
+set local role service_role;
+select (public.admin_manage_order_inventory(current_setting('test.queue_order')::uuid,current_setting('test.queue_admin')::uuid,'restock','','',true)->>'already_processed')::boolean as actual_service_role_retry_is_idempotent;
+rollback;

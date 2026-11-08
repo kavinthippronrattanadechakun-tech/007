@@ -7,6 +7,7 @@ const uuid = (v: unknown) =>
 const messages: Record<string, string> = {
   "Order not found": "ไม่พบคำสั่งซื้อ",
   "Order not delivered": "คำสั่งซื้อนี้ยังไม่ได้ส่งสินค้า",
+  "Early confirmation required": "กรุณายืนยันการคืนสต็อกก่อนหมดอายุ",
   "Order not expired": "ยังไม่ถึงวันหมดอายุ หรือไม่ได้กำหนดวันหมดอายุ",
   "Order already processed": "รายการนี้จัดการสต็อกไปแล้ว กรุณารีเฟรช",
   "Stock already available": "สต็อกนี้พร้อมขายอยู่แล้ว ไม่เพิ่มซ้ำ",
@@ -39,8 +40,15 @@ export async function POST(req: Request) {
   try {
     const actor = await user(req);
     if (!actor || !(await isAdmin(actor.id))) return fail("ไม่มีสิทธิ์", 403);
-    const { orderId, action, password = "", secret = "" } = await req.json();
+    const {
+      orderId,
+      action,
+      password = "",
+      secret = "",
+      allowEarly = false,
+    } = await req.json();
     if (
+      typeof allowEarly !== "boolean" ||
       !uuid(orderId) ||
       !["restock", "remove"].includes(action) ||
       typeof password !== "string" ||
@@ -56,6 +64,7 @@ export async function POST(req: Request) {
       p_action: action,
       p_password: password,
       p_secret: secret,
+      p_allow_early: allowEarly,
     });
     if (error)
       return fail(

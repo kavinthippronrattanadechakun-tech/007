@@ -695,3 +695,25 @@ footer p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.order.order-expired {
+  border: 1px solid #f2a7a7;
+  border-left: 5px solid #d72d2d;
+  background: #fff1f1;
+  border-radius: 10px;
+  padding: 18px;
+  margin: 16px 0;
+}
+.order-expired .expired-label {
+  color: #b91c1c;
+}
+.early-restock-notice {
+  background: #fff5dc;
+  color: #7b4b00;
+  padding: 12px;
+  border: 1px solid #ecd08e;
+  border-radius: 8px;
+}
+.restock-tabs button.selected {
+  color: #b91c1c;
+  border-color: #b91c1c;
+}

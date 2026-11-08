@@ -329,6 +329,7 @@ export default function AdminStore({
           ["products", "สินค้าและราคา"],
           ["stock", "สต็อกสินค้า"],
           ["orders", "คำสั่งซื้อลูกค้า"],
+          ["restock", "รอรีสต็อก"],
           ["customers", "ลูกค้าและเติมเงิน"],
           ["categories", "หมวดหมู่สินค้า"],
           ["settings", "ข้อความหน้าร้าน"],
@@ -356,8 +357,13 @@ export default function AdminStore({
         <p>กำลังโหลดหลังบ้าน…</p>
       ) : (
         <fieldset disabled={busy} className="admin-fieldset">
-          {section === "orders" && (
-            <AdminOrders db={db} onChanged={onChanged} />
+          {(section === "orders" || section === "restock") && (
+            <AdminOrders
+              key={section}
+              db={db}
+              onChanged={onChanged}
+              mode={section === "restock" ? "restock" : "orders"}
+            />
           )}
           {section === "customers" && (
             <AdminCustomers db={db} onChanged={onChanged} />
