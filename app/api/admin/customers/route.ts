@@ -33,7 +33,13 @@ export async function POST(req: Request) {
   try {
     const actor = await user(req);
     if (!actor || !(await isAdmin(actor.id))) return fail("ไม่มีสิทธิ์", 403);
-    const { requestId, userId, amount, reference, note } = await req.json();
+    const {
+      requestId,
+      userId,
+      amount,
+      reference = "",
+      note = "",
+    } = await req.json();
     if (
       typeof requestId !== "string" ||
       !isUuid(requestId) ||
@@ -43,9 +49,9 @@ export async function POST(req: Request) {
       amount < 1 ||
       amount > 100000 ||
       typeof reference !== "string" ||
-      !/^[A-Za-z0-9_-]{6,200}$/.test(reference.trim()) ||
+      (reference.trim() !== "" &&
+        !/^[A-Za-z0-9_-]{6,200}$/.test(reference.trim())) ||
       typeof note !== "string" ||
-      !note.trim() ||
       note.trim().length > 1000
     )
       return fail("กรอกข้อมูลการเติมเงินให้ครบถ้วน");

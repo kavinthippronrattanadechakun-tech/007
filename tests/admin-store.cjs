@@ -235,10 +235,10 @@ const defaults = {
     if (r.request().method() === "POST") {
       const body = r.request().postDataJSON();
       assert(body.requestId);
-      assert.equal(body.amount, 50);
-      assert.equal(body.reference, "BANKREF123");
+      assert.equal(body.amount, creditCalls === 0 ? 50 : 100);
+      assert.equal(body.reference, creditCalls === 0 ? "BANKREF123" : "");
       creditCalls++;
-      customerBalance += 50;
+      customerBalance += body.amount;
       return r.fulfill({ json: { data: { ok: true } } });
     }
     return r.fulfill({
@@ -261,6 +261,9 @@ const defaults = {
   await p.getByLabel("ชื่อสินค้า", { exact: true }).fill("สินค้าแก้ไข");
   await p.getByLabel("ราคา (บาท)", { exact: true }).fill("25");
   await p.getByLabel("เปิดขายสินค้า", { exact: true }).check();
+  await p
+    .getByLabel("ให้ลูกค้ากรอกอีเมลตอนซื้อสินค้านี้", { exact: true })
+    .check();
   await p.getByLabel("หมวดสินค้า", { exact: true }).selectOption("cat-chatgpt");
   await p
     .getByLabel("อัปโหลดรูปสินค้าใหม่ (ไม่เกิน 5 MB)", { exact: true })
@@ -348,11 +351,9 @@ const defaults = {
     .getByRole("button", { name: "แก้ไขอีเมลและจำนวน", exact: true })
     .first()
     .click();
-  const editForm = p
-    .locator("form")
-    .filter({
-      has: p.getByRole("heading", { name: "แก้ไขสต็อก Mail", exact: true }),
-    });
+  const editForm = p.locator("form").filter({
+    has: p.getByRole("heading", { name: "แก้ไขสต็อก Mail", exact: true }),
+  });
   await editForm.getByLabel("สต็อกจำนวน", { exact: true }).fill("2");
   await editForm
     .getByLabel("ข้อมูลเพิ่มเติม (ถ้ามี)", { exact: true })
@@ -402,6 +403,9 @@ const defaults = {
     .getByLabel("จำนวนเงินที่แอดมินเติม (บาท)", { exact: true })
     .fill("50");
   await p
+    .getByText("เลขอ้างอิง / หมายเหตุ (ไม่บังคับ)", { exact: true })
+    .click();
+  await p
     .getByLabel("เลขอ้างอิงธุรกรรมธนาคาร", { exact: true })
     .fill("BANKREF123");
   await p
@@ -412,6 +416,12 @@ const defaults = {
     .click();
   await p.getByText("ยอดเงินปัจจุบัน ฿150", { exact: true }).waitFor();
   assert.equal(creditCalls, 1);
+  await p.getByRole("button", { name: "฿100", exact: true }).click();
+  await p
+    .getByRole("button", { name: "เติมเงินให้ลูกค้า", exact: true })
+    .click();
+  await p.getByText("ยอดเงินปัจจุบัน ฿250", { exact: true }).waitFor();
+  assert.equal(creditCalls, 2);
   await p.getByRole("button", { name: "ข้อความหน้าร้าน", exact: true }).click();
   await p.getByLabel("หัวข้อหน้าร้าน", { exact: true }).fill("ร้านใหม่ของเรา");
   await p.getByLabel("ช่องทางติดต่อ", { exact: true }).fill("LINE @test");
@@ -483,6 +493,9 @@ const defaults = {
   await p.getByRole("link", { name: "ดูรายละเอียด", exact: true }).click();
   await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
   await p.getByText("คงเหลือ 3 สิทธิ์", { exact: true }).waitFor();
+  await p
+    .getByLabel("อีเมลลูกค้าสำหรับรายการที่ต้องใช้เมล", { exact: true })
+    .waitFor();
   await p.getByText("รายละเอียดสินค้า", { exact: true }).waitFor();
   await p.reload();
   await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
@@ -515,6 +528,27 @@ const defaults = {
     ),
   );
   await p.screenshot({ path: "/tmp/catalog-mobile.png", fullPage: true });
+  await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
+  await p
+    .getByRole("button", { name: "แก้ไข สินค้าแก้ไข", exact: true })
+    .click();
+  await p
+    .getByLabel("ให้ลูกค้ากรอกอีเมลตอนซื้อสินค้านี้", { exact: true })
+    .uncheck();
+  await p.getByRole("button", { name: "บันทึกสินค้า", exact: true }).click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "บันทึกเรียบร้อยแล้ว" })
+    .waitFor();
+  assert.equal(products[0].requires_customer_email, false);
+  await p.getByRole("button", { name: "สินค้า", exact: true }).click();
+  await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
+  assert.equal(
+    await p
+      .getByLabel("อีเมลลูกค้าสำหรับรายการที่ต้องใช้เมล", { exact: true })
+      .count(),
+    0,
+  );
   console.log(
     "PASS: category cards, package drilldown, detail refresh, aggregate stock display, editable category metadata;  SlipOK 99-limit UI and manual fallback; category add/rename/product assignment/storefront filtering; multi-email quantities and delivery add/edit/delete; edit product + price + uploaded image; add/edit/delete stock; save storefront text and render immediately; validate and save bank account and show on topup; mobile width; no browser exceptions",
   );

@@ -65,7 +65,7 @@ const assert = require("node:assert/strict");
       base + "/auth/confirm?error_code=otp_expired#error=access_denied",
     );
     await p
-      .getByText("ลิงก์ยืนยันอีเมลหมดอายุหรือถูกใช้แล้ว", { exact: false })
+      .getByText("ลิงก์หมดอายุหรือถูกใช้แล้ว", { exact: false })
       .waitFor();
     assert.equal(
       await p

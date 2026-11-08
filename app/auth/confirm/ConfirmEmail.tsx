@@ -2,13 +2,23 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { CheckCircle2, LoaderCircle, AlertCircle } from "lucide-react";
+import ResetPassword from "./ResetPassword";
 import { supabaseUrl } from "../../../lib/supabase-config";
 export default function ConfirmEmail() {
-  const [state, setState] = useState<"checking" | "success" | "error">(
-      "checking",
-    ),
+  const [state, setState] = useState<
+      "checking" | "success" | "error" | "recovery"
+    >("checking"),
     [message, setMessage] = useState("กำลังตรวจสอบการยืนยันอีเมล…");
-  const operation = useRef<Promise<void> | null>(null);
+  const operation = useRef<Promise<boolean> | null>(null);
+  useEffect(() => {
+    const onHash = () => {
+      const p = new URLSearchParams(window.location.hash.slice(1));
+      if (p.has("access_token") || p.has("error") || p.has("error_code"))
+        window.location.reload();
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   useEffect(() => {
     let live = true;
     async function verify() {
@@ -28,9 +38,9 @@ export default function ConfirmEmail() {
         hash.has("error_code")
       )
         throw Error(
-          "ลิงก์ยืนยันอีเมลหมดอายุหรือถูกใช้แล้ว หากยืนยันบัญชีไปแล้ว สามารถกลับไปเข้าสู่ระบบได้เลย",
+          "ลิงก์หมดอายุหรือถูกใช้แล้ว หากต้องการตั้งรหัสผ่านใหม่ให้ขอลิงก์รีเซ็ตอีกครั้ง หรือกลับไปเข้าสู่ระบบ",
         );
-      if (!["email", "signup"].includes(type))
+      if (!["email", "signup", "recovery"].includes(type))
         throw Error("ลิงก์นี้ไม่ใช่ลิงก์ยืนยันการสมัครสมาชิก");
       const client = createClient(
         supabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!),
@@ -43,7 +53,7 @@ export default function ConfirmEmail() {
       } else if (token_hash) {
         ({ error } = await client.auth.verifyOtp({
           token_hash,
-          type: type as "email" | "signup",
+          type: type as "email" | "signup" | "recovery",
         }));
       } else if (access_token && refresh_token) {
         ({ error } = await client.auth.setSession({
@@ -61,11 +71,19 @@ export default function ConfirmEmail() {
         throw Error(
           "ไม่พบการยืนยันอีเมล กรุณาเปิดลิงก์จากอีเมล หรือกลับไปเข้าสู่ระบบ",
         );
+      const recovery =
+        type === "recovery" ||
+        (!code &&
+          !token_hash &&
+          !access_token &&
+          sessionStorage.getItem("password-recovery-pending") === "1");
+      if (recovery) sessionStorage.setItem("password-recovery-pending", "1");
       if (!data.user.email_confirmed_at)
         throw Error("อีเมลนี้ยังไม่ได้ยืนยัน กรุณาเปิดลิงก์ยืนยันจากอีเมล");
+      return recovery;
     }
     if (!operation.current) {
-      operation.current = new Promise<void>((resolve, reject) => {
+      operation.current = new Promise<boolean>((resolve, reject) => {
         const timer = setTimeout(
           () =>
             reject(
@@ -81,9 +99,9 @@ export default function ConfirmEmail() {
       });
     }
     operation.current
-      .then(() => {
+      .then((recovery) => {
         if (live) {
-          setState("success");
+          setState(recovery ? "recovery" : "success");
           setMessage("ยืนยันอีเมลสำเร็จแล้ว บัญชีของคุณพร้อมใช้งาน");
         }
       })
@@ -99,6 +117,7 @@ export default function ConfirmEmail() {
       live = false;
     };
   }, []);
+  if (state === "recovery") return <ResetPassword />;
   return (
     <main className="confirmation-page">
       <section
@@ -121,6 +140,11 @@ export default function ConfirmEmail() {
               : "กำลังยืนยันอีเมล"}
         </h1>
         <p>{message}</p>
+        {state === "error" && (
+          <p>
+            <a href="/auth/forgot">ขอลิงก์รีเซ็ตรหัสผ่านใหม่</a>
+          </p>
+        )}
         <a className="confirmation-link" href="/">
           {state === "success" ? "ไปยังร้านค้า" : "กลับไปเข้าสู่ระบบ"}
         </a>

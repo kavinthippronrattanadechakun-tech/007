@@ -12,7 +12,8 @@
     "test:slipok": "node --experimental-strip-types --test tests/slipok.test.mjs",
     "test:slipok-route": "node --test tests/slipok-route.test.cjs",
     "test:admin-api": "node --test tests/admin-operations-route.test.cjs",
-    "test:structured-stock": "node --experimental-strip-types --test tests/structured-stock.test.mjs"
+    "test:structured-stock": "node --experimental-strip-types --test tests/structured-stock.test.mjs",
+    "test:password-reset": "node tests/password-reset.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

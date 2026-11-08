@@ -7,6 +7,7 @@ export type Product = {
   delivery_type: string;
   image_url: string;
   category_id: string | null;
+  requires_customer_email: boolean;
 };
 export const defaultSettings = {
   bank_name: "",

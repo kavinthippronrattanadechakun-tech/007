@@ -22,6 +22,7 @@ const emptyProduct = (): Product => ({
   delivery_type: "manual",
   image_url: "",
   category_id: null,
+  requires_customer_email: false,
 });
 const labels: Record<keyof StoreSettings, string> = {
   bank_name: "ชื่อธนาคาร",
@@ -195,6 +196,7 @@ export default function AdminStore({
         delivery_type: product.delivery_type,
         image_url: imageUrl,
         category_id: product.category_id || null,
+        requires_customer_email: !!product.requires_customer_email,
       };
       const result = editing
         ? await db
@@ -489,6 +491,19 @@ export default function AdminStore({
                       </option>
                     ))}
                   </select>
+                </label>
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={!!product.requires_customer_email}
+                    onChange={(e) =>
+                      setProduct({
+                        ...product,
+                        requires_customer_email: e.target.checked,
+                      })
+                    }
+                  />
+                  ให้ลูกค้ากรอกอีเมลตอนซื้อสินค้านี้
                 </label>
                 <label>
                   วิธีส่งสินค้า
