@@ -17,7 +17,8 @@
     "test:expiry": "node --experimental-strip-types --test tests/order-expiry.test.mjs",
     "test:restock-queue": "node tests/restock-queue.cjs",
     "test:stability": "node tests/storefront-stability.cjs",
-    "test:subcategories": "node tests/chatgpt-subcategories.cjs"
+    "test:subcategories": "node tests/chatgpt-subcategories.cjs",
+    "test:email-limit": "node tests/auth-email-limit.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
