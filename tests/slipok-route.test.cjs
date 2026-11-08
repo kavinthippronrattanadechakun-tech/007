@@ -30,7 +30,8 @@ async function scenario(kind) {
     quotaReads = 0,
     credits = 0,
     consumed = 0,
-    finish = null;
+    finish = null,
+    receipt = null;
   try {
     Object.assign(process.env, {
       NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co",
@@ -55,9 +56,20 @@ async function scenario(kind) {
           bank_account_number: "0012345678",
         });
       if (url.includes("/rpc/reserve_topup"))
-        return kind === "hash-duplicate"
-          ? json({ code: "23505", message: "duplicate" }, 409)
-          : json(JSON.parse(options.body).p_id);
+        return kind === "credited"
+          ? json({ code: "P0001", message: "Slip already credited" }, 400)
+          : kind === "hash-duplicate"
+            ? json({ code: "23505", message: "duplicate" }, 409)
+            : json(JSON.parse(options.body).p_id);
+      if (url.includes("/rest/v1/verified_slip_receipts")) {
+        if (options.method === "POST") {
+          receipt = JSON.parse(options.body);
+          return json(null);
+        }
+        return json(receipt);
+      }
+      if (url.includes("/rest/v1/topups") && options.method !== "PATCH")
+        return json(null);
       if (url.includes("/storage/v1/object/slips/"))
         return json({ Key: "slips/test.png" });
       if (url.includes("/rpc/slipok_usage_status"))
@@ -92,7 +104,7 @@ async function scenario(kind) {
         if (kind === "offline") throw Error("offline");
         const data = {
           success: true,
-          amount: kind === "amount" ? 200 : 100,
+          amount: kind === "amount" ? 200 : kind === "retry" ? 50 : 100,
           countryCode: "TH",
           receivingBank: "014",
           transRef: "TESTREF123",
@@ -118,25 +130,33 @@ async function scenario(kind) {
           : json({ id: "test-topup" });
       throw Error("Unexpected HTTP: " + new URL(url).pathname);
     };
-    let response;
+    let response, first;
     if (kind === "metadata-cap" || kind === "metadata-pause")
       response = await route.GET();
     else {
       const form = new FormData();
       form.append("amount", "100");
       form.append("slip", new File([png], "slip.png", { type: "image/png" }));
-      response = await route.POST(
-        new Request("https://store.example/api/topup", {
-          method: "POST",
-          headers:
-            kind === "unauthenticated"
-              ? {}
-              : { Authorization: "Bearer test-user" },
-          body: form,
-        }),
-      );
+      const submit = () =>
+        route.POST(
+          new Request("https://store.example/api/topup", {
+            method: "POST",
+            headers:
+              kind === "unauthenticated"
+                ? {}
+                : { Authorization: "Bearer test-user" },
+            body: form,
+          }),
+        );
+      response = await submit();
+      if (kind === "retry") {
+        first = await response.json();
+        form.set("amount", "50");
+        response = await submit();
+      }
     }
     return {
+      first,
       status: response.status,
       body: await response.json(),
       checks,
@@ -167,6 +187,7 @@ test("local cap, busy gate and duplicate files never call SlipOK", async () => {
     "hash-duplicate",
     "unconfigured",
     "unauthenticated",
+    "credited",
   ]) {
     const r = await scenario(kind);
     assert.equal(r.checks, 0, kind);
@@ -190,7 +211,7 @@ test("provider quota zero, quota failure or consume denial never send a slip", a
   assert.equal((await scenario("provider-exhausted")).finish.p_pause, true);
 });
 test("duplicate/error data cannot auto-credit; network uncertainty goes to manual review", async () => {
-  for (const kind of ["duplicate", "receiver", "amount"]) {
+  for (const kind of ["receiver", "amount"]) {
     const r = await scenario(kind);
     assert.equal(r.body.status, "rejected");
     assert.equal(r.credits, 0);
@@ -222,4 +243,19 @@ test("temporary provider pause is reported separately from the hard monthly cap"
   assert.equal(r.body.reason, "unavailable");
   assert.equal(r.checks, 0);
   assert.equal(r.quotaReads, 0);
+});
+
+test("wrong amount retry reuses trusted proof without a second provider call or credit", async () => {
+  const r = await scenario("retry");
+  assert.equal(r.first.status, "rejected");
+  assert.equal(r.first.correctAmount, 50);
+  assert.equal(r.body.status, "approved");
+  assert.equal(r.checks, 1);
+  assert.equal(r.consumed, 1);
+  assert.equal(r.credits, 1);
+});
+test("provider duplicate without trusted receipt stays for manual review", async () => {
+  const r = await scenario("duplicate");
+  assert.equal(r.body.status, "pending");
+  assert.equal(r.credits, 0);
 });

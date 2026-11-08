@@ -3,6 +3,7 @@ export class SlipOKError extends Error {
   quota: boolean;
   uncertain: boolean;
   providerCode?: number;
+  reference?: string;
   constructor(
     message: string,
     {
@@ -10,11 +11,13 @@ export class SlipOKError extends Error {
       quota = false,
       uncertain = false,
       providerCode,
+      reference,
     }: {
       retryable?: boolean;
       quota?: boolean;
       uncertain?: boolean;
       providerCode?: number;
+      reference?: string;
     } = {},
   ) {
     super(message);
@@ -22,6 +25,7 @@ export class SlipOKError extends Error {
     this.quota = quota;
     this.uncertain = uncertain;
     this.providerCode = providerCode;
+    this.reference = reference;
   }
 }
 function setting(name: string) {
@@ -115,13 +119,24 @@ export type ExpectedSlip = {
   earliestDate?: number;
   now?: number;
 };
-export function parseSlipOK(value: unknown, expected: ExpectedSlip) {
+export function parseSlipOK(
+  value: unknown,
+  expected: ExpectedSlip,
+  enforceAmount = true,
+) {
   const body = value as any,
     data = body?.data;
   if (body?.success !== true || data?.success !== true || body?.code) {
     const code = Number(body?.code);
     if (code === 1012)
-      throw new SlipOKError("สลิปนี้เคยใช้แล้ว ไม่สามารถใช้เติมเงินซ้ำได้");
+      throw new SlipOKError("SlipOK เคยตรวจรายการนี้แล้ว", {
+        providerCode: 1012,
+        reference:
+          typeof data?.transRef === "string" &&
+          /^[A-Za-z0-9_-]{6,200}$/.test(data.transRef)
+            ? data.transRef.toUpperCase()
+            : undefined,
+      });
     if (code === 1013)
       throw new SlipOKError("ยอดโอนในสลิปไม่ตรงกับยอดเติมเงิน");
     if (code === 1014) throw new SlipOKError("ผู้รับเงินไม่ตรงกับบัญชีร้าน");
@@ -138,7 +153,7 @@ export function parseSlipOK(value: unknown, expected: ExpectedSlip) {
     throw new SlipOKError("ผลตรวจยอดเงินไม่ครบ ส่งให้แอดมินตรวจสอบต่อ", {
       retryable: true,
     });
-  if (data.amount !== expected.amount)
+  if (enforceAmount && data.amount !== expected.amount)
     throw new SlipOKError("ยอดโอนในสลิปไม่ตรงกับยอดเติมเงิน");
   // log:true makes SlipOK validate the receiver against its registered branch account.
   // The returned masked number is only an additional consistency check, not identity proof by itself.
@@ -187,7 +202,7 @@ export function parseSlipOK(value: unknown, expected: ExpectedSlip) {
     );
   return {
     reference: data.transRef.toUpperCase(),
-    amount: expected.amount,
+    amount: data.amount,
     transferAt: new Date(date).toISOString(),
   };
 }
@@ -225,7 +240,7 @@ export async function verifySlipOK(
   const form = new FormData();
   form.append("files", file);
   form.append("log", "true");
-  form.append("amount", String(expected.amount));
+  // Compare the declared amount locally after caching a fully verified receipt.
   try {
     const r = await fetch(
       `https://api.slipok.com/api/line/apikey/${config.branch}`,
@@ -242,7 +257,7 @@ export async function verifySlipOK(
       throw new SlipOKError("ผลตรวจไม่สมบูรณ์ ส่งให้แอดมินตรวจสอบต่อ", {
         retryable: true,
       });
-    return parseSlipOK(body, expected);
+    return parseSlipOK(body, expected, false);
   } catch (e) {
     if (e instanceof SlipOKError) throw e;
     throw new SlipOKError("บริการตรวจสลิปขัดข้อง ส่งให้แอดมินตรวจสอบต่อ", {

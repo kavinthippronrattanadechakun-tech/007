@@ -234,8 +234,16 @@ export default function Home() {
       f.append("slip", slip);
       const result = await api("/api/topup", f);
       setMsg(result.message);
-      setSlip(null);
-      setAmount("");
+      if (
+        result.status === "rejected" &&
+        Number.isSafeInteger(result.correctAmount) &&
+        result.correctAmount > 0
+      ) {
+        setAmount(String(result.correctAmount));
+      } else {
+        setSlip(null);
+        setAmount("");
+      }
       if (user) await load(user);
     } catch (e) {
       setMsg((e as Error).message);
