@@ -1,31 +1,396 @@
-const {chromium}=require('playwright');const assert=require('node:assert/strict');
-const defaults={bank_name:'',bank_account_name:'',bank_account_number:'',brand_name:'PREMIUM HUB',hero_title:'พรีเมียมในแบบที่คุณเลือก',hero_description:'รายละเอียด',announcement:'ประกาศ',contact_text:'',footer_text:'ท้ายเว็บ'};
-(async()=>{const b=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const p=await b.newPage();p.setDefaultTimeout(10000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
-const u={id:'11111111-1111-4111-8111-111111111111',email:'admin@example.com',aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{},created_at:new Date().toISOString()};const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const token=enc({alg:'HS256'})+'.'+enc({sub:u.id,exp:Math.floor(Date.now()/1000)+3600})+'.test';
-await p.addInitScript(({u,token})=>localStorage.setItem('sb-ycnqqhrsfmrnaxkmmkut-auth-token',JSON.stringify({access_token:token,refresh_token:'test',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user:u})),{u,token});
-let categories=[{id:'cat-netflix',name:'Netflix',sort_order:10},{id:'cat-chatgpt',name:'ChatGPT',sort_order:20},{id:'cat-gemini',name:'Gemini',sort_order:30}];let products=[{id:'test',category_id:'cat-netflix',title:'สินค้าทดสอบ',description:'รายละเอียดสินค้า',price:10,active:false,delivery_type:'code',image_url:''}],settings={id:true,...defaults},stock=[],batches=[],uploaded=false;
-await p.route('https://*.supabase.co/**',async r=>{const req=r.request(),url=new URL(req.url()),path=url.pathname,method=req.method();let data=[];const body=()=>req.postDataJSON();
- if(path.includes('/auth/v1/user'))data=u;
- else if(path.includes('/storage/v1/object/')&&method==='POST'){uploaded=true;data={Key:'product-images/test.png'};}
- else if(path.includes('/storage/v1/object/public/'))return r.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR2kAAAAASUVORK5CYII=','base64')});
- else if(path.includes('/profiles'))data={balance:100,is_admin:true};
- else if(path.includes('/store_settings')){if(method==='PATCH')settings={...settings,...body()};data=settings;}
- else if(path.includes('/product_categories')){if(method==='POST')categories.push({...body(),id:'cat-'+categories.length});if(method==='PATCH'){const id=url.searchParams.get('id')?.slice(3);categories=categories.map(c=>c.id===id?{...c,...body()}:c);}data=method==='GET'?categories:{id:categories.at(-1).id};}
- else if(path.includes('/products')){if(method==='POST')products.push(body());if(method==='PATCH'){const id=url.searchParams.get('id')?.slice(3);products=products.map(p=>p.id===id?{...p,...body()}:p);}data=method==='GET'?products:{id:products.at(-1).id};}
- else if(path.includes('/rpc/email_stock_totals'))data=[{available:batches.reduce((a,x)=>a+x.remaining,0),sold:batches.reduce((a,x)=>a+x.sold,0)}];
- else if(path.includes('/email_stock_batches')){if(method==='POST')batches.push(...body().map((x,i)=>({...x,id:'batch-'+(batches.length+i),sold:0})));if(method==='PATCH'){const id=url.searchParams.get('id')?.slice(3);batches=batches.map(x=>x.id===id?{...x,...body()}:x);data={id};}else if(method==='DELETE'){const id=url.searchParams.get('id')?.slice(3);batches=batches.filter(x=>x.id!==id);data={id};}else data=batches;}
- else if(path.includes('/stock')){if(method==='POST')stock.push(...body().map((x,i)=>({...x,id:'stock-'+(stock.length+i),order_id:null})));if(method==='PATCH'){const id=url.searchParams.get('id')?.slice(3);stock=stock.map(s=>s.id===id?{...s,...body()}:s);data={id};}else if(method==='DELETE'){const id=url.searchParams.get('id')?.slice(3);stock=stock.filter(s=>s.id!==id);data={id};}else data=stock; if(method==='HEAD')return r.fulfill({status:200,headers:{'access-control-expose-headers':'content-range','content-range':`0-0/${url.searchParams.get('order_id')==='not.is.null'?0:stock.length}`}});}
- return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data),headers:{'access-control-expose-headers':'content-range','content-range':`0-0/${Array.isArray(data)?data.length:1}`}});
-});await p.route('**/api/admin',r=>r.fulfill({json:{rows:[]}}));
-await p.route('**/api/topup',r=>r.fulfill({json:{mode:'manual',reason:'quota'}}));
-await p.route('**/api/admin/slipok',r=>r.fulfill({json:{configured:true,cycleDay:8,providerRemaining:0,providerError:false,usage:{used:99,limit:99,remaining:0,period_start:'2026-11-08',period_end:'2026-12-08',paused:false}}}));
-await p.goto(process.env.TEST_URL||'http://127.0.0.1:3001');await p.getByRole('button',{name:'หลังบ้าน',exact:true}).click();await p.getByRole('heading',{name:'จัดการร้านค้า'}).waitFor();
-await p.getByRole('button',{name:'แก้ไข สินค้าทดสอบ',exact:true}).click();await p.getByLabel('ชื่อสินค้า',{exact:true}).fill('สินค้าแก้ไข');await p.getByLabel('ราคา (บาท)',{exact:true}).fill('25');await p.getByLabel('หมวดสินค้า',{exact:true}).selectOption('cat-chatgpt');await p.getByLabel('อัปโหลดรูปสินค้าใหม่ (ไม่เกิน 5 MB)',{exact:true}).setInputFiles({name:'product.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR2kAAAAASUVORK5CYII=','base64')});await p.getByRole('button',{name:'บันทึกสินค้า',exact:true}).click();await p.getByRole('status').filter({hasText:'บันทึกเรียบร้อยแล้ว'}).waitFor();assert.equal(products[0].price,25);assert(uploaded);assert(products[0].image_url.includes('/storage/v1/object/public/product-images/'));
-await p.getByRole('button',{name:'สต็อกสินค้า',exact:true}).click();await p.getByLabel('เติมสต็อก (1 โค้ดต่อบรรทัด สูงสุด 200 รายการ)',{exact:true}).fill('CODE-1\nCODE-2');await p.getByRole('button',{name:'เติมสต็อก',exact:true}).click();await p.getByText('CODE-1',{exact:true}).waitFor();assert.equal(stock.length,2);
-await p.getByRole('button',{name:'แก้ไขโค้ด',exact:true}).first().click();await p.getByLabel('แก้ไขโค้ด',{exact:true}).fill('CODE-EDIT');await p.getByRole('button',{name:'บันทึกโค้ด',exact:true}).click();await p.getByText('CODE-EDIT',{exact:true}).waitFor();p.on('dialog',d=>d.accept());await p.getByRole('button',{name:'ลบโค้ด',exact:true}).first().click();await p.waitForFunction(()=>!document.body.innerText.includes('CODE-EDIT'));assert.equal(stock.length,1);
-await p.getByLabel('เติมหลายอีเมล',{exact:true}).fill('one@example.com | 4 | delivery-one\ntwo@example.com | 3 | delivery-two');await p.getByRole('button',{name:'บันทึกหลายอีเมล',exact:true}).click();await p.getByText('one@example.com',{exact:true}).waitFor();assert.equal(batches.length,2);assert.equal(batches.reduce((n,x)=>n+x.remaining,0),7);await p.getByRole('button',{name:'แก้ไขอีเมลและจำนวน',exact:true}).first().click();await p.getByLabel('จำนวนสิทธิ์คงเหลือ',{exact:true}).fill('2');await p.getByLabel('ข้อมูลส่งมอบ',{exact:true}).fill('updated-delivery');await p.getByRole('button',{name:'บันทึกอีเมลและจำนวน',exact:true}).click();await p.getByRole('status').filter({hasText:'บันทึกสต็อกอีเมลเรียบร้อยแล้ว'}).waitFor();assert.equal(batches[0].remaining,2);assert.equal(batches[0].delivery_info,'updated-delivery');await p.getByRole('button',{name:'ลบอีเมล',exact:true}).last().click();await p.waitForFunction(()=>!document.body.innerText.includes('two@example.com'));assert.equal(batches.length,1);
-await p.getByRole('button',{name:'ข้อความหน้าร้าน',exact:true}).click();await p.getByLabel('หัวข้อหน้าร้าน',{exact:true}).fill('ร้านใหม่ของเรา');await p.getByLabel('ช่องทางติดต่อ',{exact:true}).fill('LINE @test');await p.getByRole('button',{name:'บันทึกข้อความหน้าร้าน',exact:true}).click();await p.getByRole('heading',{name:'ร้านใหม่ของเรา',exact:true}).waitFor();assert.equal(settings.contact_text,'LINE @test');assert.equal(errors.length,0,errors.join('\n'));
-await p.getByRole('button',{name:'บัญชีธนาคาร',exact:true}).click();await p.getByText('99 / 99',{exact:true}).waitFor();await p.getByText('ใช้การตรวจโดยแอดมินในรอบนี้',{exact:true}).waitFor();await p.getByLabel('ชื่อธนาคาร',{exact:true}).fill('ธนาคารทดสอบ');await p.getByRole('button',{name:'บันทึกบัญชีธนาคาร',exact:true}).click();await p.getByRole('status').filter({hasText:'กรุณากรอกข้อมูลบัญชีธนาคารให้ครบ'}).waitFor();await p.getByLabel('ชื่อบัญชี',{exact:true}).fill('ชื่อบัญชีทดสอบ');await p.getByLabel('เลขบัญชี',{exact:true}).fill('001-234-5678');await p.getByRole('button',{name:'บันทึกบัญชีธนาคาร',exact:true}).click();await p.getByRole('status').filter({hasText:'บันทึกเรียบร้อยแล้ว'}).waitFor();await p.getByRole('button',{name:'เติมเงิน',exact:true}).click();await p.locator('.bank').filter({hasText:'001-234-5678'}).waitFor();await p.getByText('โควต้าตรวจอัตโนมัติรอบนี้หมดแล้ว',{exact:false}).waitFor();assert.equal(settings.bank_account_number,'001-234-5678');
-await p.getByRole('button',{name:'หลังบ้าน',exact:true}).click();await p.getByRole('button',{name:'หมวดหมู่สินค้า',exact:true}).click();await p.getByLabel('ชื่อหมวดหมู่',{exact:true}).fill('แอปอื่น');await p.getByRole('button',{name:'เพิ่มหมวดหมู่',exact:true}).click();await p.getByRole('button',{name:'แก้หมวด แอปอื่น',exact:true}).click();await p.getByLabel('ชื่อหมวดหมู่',{exact:true}).fill('แอปเพิ่มเติม');await p.getByRole('button',{name:'บันทึกหมวดหมู่',exact:true}).click();await p.getByRole('button',{name:'แก้หมวด แอปเพิ่มเติม',exact:true}).waitFor();await p.getByRole('button',{name:'สินค้าและราคา',exact:true}).click();await p.getByRole('button',{name:'แก้ไข สินค้าแก้ไข',exact:true}).click();await p.getByLabel('หมวดสินค้า',{exact:true}).selectOption(categories.find(c=>c.name==='แอปเพิ่มเติม').id);await p.getByRole('button',{name:'บันทึกสินค้า',exact:true}).click();await p.getByRole('status').filter({hasText:'บันทึกเรียบร้อยแล้ว'}).waitFor();await p.getByRole('button',{name:'สินค้า',exact:true}).click();await p.getByRole('button',{name:'แอปเพิ่มเติม',exact:true}).click();await p.getByRole('heading',{name:'สินค้าแก้ไข',exact:true}).waitFor();await p.getByRole('button',{name:'Netflix',exact:true}).click();await p.getByText('ยังไม่มีสินค้าในหมวดนี้',{exact:true}).waitFor();
-await p.setViewportSize({width:390,height:844});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
-console.log('PASS: SlipOK 99-limit UI and manual fallback; category add/rename/product assignment/storefront filtering; multi-email quantities and delivery add/edit/delete; edit product + price + uploaded image; add/edit/delete stock; save storefront text and render immediately; validate and save bank account and show on topup; mobile width; no browser exceptions');await b.close();})().catch(e=>{console.error(e);process.exit(1)});
+const { chromium } = require("playwright");
+const assert = require("node:assert/strict");
+const defaults = {
+  bank_name: "",
+  bank_account_name: "",
+  bank_account_number: "",
+  brand_name: "PREMIUM HUB",
+  hero_title: "พรีเมียมในแบบที่คุณเลือก",
+  hero_description: "รายละเอียด",
+  announcement: "ประกาศ",
+  contact_text: "",
+  footer_text: "ท้ายเว็บ",
+};
+(async () => {
+  const b = await chromium.launch({
+    executablePath: process.env.CHROMIUM_EXECUTABLE_PATH || "/usr/bin/chromium",
+    headless: true,
+    args: ["--no-sandbox"],
+  });
+  const p = await b.newPage();
+  p.setDefaultTimeout(10000);
+  const errors = [];
+  p.on("pageerror", (e) => errors.push(e.message));
+  const u = {
+    id: "11111111-1111-4111-8111-111111111111",
+    email: "admin@example.com",
+    aud: "authenticated",
+    role: "authenticated",
+    app_metadata: {},
+    user_metadata: {},
+    created_at: new Date().toISOString(),
+  };
+  const enc = (x) => Buffer.from(JSON.stringify(x)).toString("base64url");
+  const token =
+    enc({ alg: "HS256" }) +
+    "." +
+    enc({ sub: u.id, exp: Math.floor(Date.now() / 1000) + 3600 }) +
+    ".test";
+  await p.addInitScript(
+    ({ u, token }) =>
+      localStorage.setItem(
+        "sb-ycnqqhrsfmrnaxkmmkut-auth-token",
+        JSON.stringify({
+          access_token: token,
+          refresh_token: "test",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          expires_in: 3600,
+          token_type: "bearer",
+          user: u,
+        }),
+      ),
+    { u, token },
+  );
+  let categories = [
+    { id: "cat-netflix", name: "Netflix", sort_order: 10 },
+    { id: "cat-chatgpt", name: "ChatGPT", sort_order: 20 },
+    { id: "cat-gemini", name: "Gemini", sort_order: 30 },
+  ];
+  let products = [
+      {
+        id: "test",
+        category_id: "cat-netflix",
+        title: "สินค้าทดสอบ",
+        description: "รายละเอียดสินค้า",
+        price: 10,
+        active: false,
+        delivery_type: "code",
+        image_url: "",
+      },
+    ],
+    settings = { id: true, ...defaults },
+    stock = [],
+    batches = [],
+    uploaded = false;
+  await p.route("https://*.supabase.co/**", async (r) => {
+    const req = r.request(),
+      url = new URL(req.url()),
+      path = url.pathname,
+      method = req.method();
+    let data = [];
+    const body = () => req.postDataJSON();
+    if (path.includes("/auth/v1/user")) data = u;
+    else if (path.includes("/storage/v1/object/") && method === "POST") {
+      uploaded = true;
+      data = { Key: "product-images/test.png" };
+    } else if (path.includes("/storage/v1/object/public/"))
+      return r.fulfill({
+        status: 200,
+        contentType: "image/png",
+        body: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR2kAAAAASUVORK5CYII=",
+          "base64",
+        ),
+      });
+    else if (path.includes("/profiles"))
+      data = { balance: 100, is_admin: true };
+    else if (path.includes("/store_settings")) {
+      if (method === "PATCH") settings = { ...settings, ...body() };
+      data = settings;
+    } else if (path.includes("/product_categories")) {
+      if (method === "POST")
+        categories.push({ ...body(), id: "cat-" + categories.length });
+      if (method === "PATCH") {
+        const id = url.searchParams.get("id")?.slice(3);
+        categories = categories.map((c) =>
+          c.id === id ? { ...c, ...body() } : c,
+        );
+      }
+      data = method === "GET" ? categories : { id: categories.at(-1).id };
+    } else if (path.includes("/products")) {
+      if (method === "POST") products.push(body());
+      if (method === "PATCH") {
+        const id = url.searchParams.get("id")?.slice(3);
+        products = products.map((p) => (p.id === id ? { ...p, ...body() } : p));
+      }
+      data = method === "GET" ? products : { id: products.at(-1).id };
+    } else if (path.includes("/rpc/email_stock_totals"))
+      data = [
+        {
+          available: batches.reduce((a, x) => a + x.remaining, 0),
+          sold: batches.reduce((a, x) => a + x.sold, 0),
+        },
+      ];
+    else if (path.includes("/email_stock_batches")) {
+      if (method === "POST")
+        batches.push(
+          ...body().map((x, i) => ({
+            ...x,
+            id: "batch-" + (batches.length + i),
+            sold: 0,
+          })),
+        );
+      if (method === "PATCH") {
+        const id = url.searchParams.get("id")?.slice(3);
+        batches = batches.map((x) => (x.id === id ? { ...x, ...body() } : x));
+        data = { id };
+      } else if (method === "DELETE") {
+        const id = url.searchParams.get("id")?.slice(3);
+        batches = batches.filter((x) => x.id !== id);
+        data = { id };
+      } else data = batches;
+    } else if (path.includes("/stock")) {
+      if (method === "POST")
+        stock.push(
+          ...body().map((x, i) => ({
+            ...x,
+            id: "stock-" + (stock.length + i),
+            order_id: null,
+          })),
+        );
+      if (method === "PATCH") {
+        const id = url.searchParams.get("id")?.slice(3);
+        stock = stock.map((s) => (s.id === id ? { ...s, ...body() } : s));
+        data = { id };
+      } else if (method === "DELETE") {
+        const id = url.searchParams.get("id")?.slice(3);
+        stock = stock.filter((s) => s.id !== id);
+        data = { id };
+      } else data = stock;
+      if (method === "HEAD")
+        return r.fulfill({
+          status: 200,
+          headers: {
+            "access-control-expose-headers": "content-range",
+            "content-range": `0-0/${url.searchParams.get("order_id") === "not.is.null" ? 0 : stock.length}`,
+          },
+        });
+    }
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(data),
+      headers: {
+        "access-control-expose-headers": "content-range",
+        "content-range": `0-0/${Array.isArray(data) ? data.length : 1}`,
+      },
+    });
+  });
+  await p.route("**/api/catalog", (r) =>
+    r.fulfill({ json: { stock: [{ product_id: "test", available: 3 }] } }),
+  );
+  await p.route("**/api/admin", (r) => r.fulfill({ json: { rows: [] } }));
+  await p.route("**/api/topup", (r) =>
+    r.fulfill({ json: { mode: "manual", reason: "quota" } }),
+  );
+  await p.route("**/api/admin/slipok", (r) =>
+    r.fulfill({
+      json: {
+        configured: true,
+        cycleDay: 8,
+        providerRemaining: 0,
+        providerError: false,
+        usage: {
+          used: 99,
+          limit: 99,
+          remaining: 0,
+          period_start: "2026-11-08",
+          period_end: "2026-12-08",
+          paused: false,
+        },
+      },
+    }),
+  );
+  await p.goto(process.env.TEST_URL || "http://127.0.0.1:3001");
+  await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
+  await p.getByRole("heading", { name: "จัดการร้านค้า" }).waitFor();
+  await p
+    .getByRole("button", { name: "แก้ไข สินค้าทดสอบ", exact: true })
+    .click();
+  await p.getByLabel("ชื่อสินค้า", { exact: true }).fill("สินค้าแก้ไข");
+  await p.getByLabel("ราคา (บาท)", { exact: true }).fill("25");
+  await p.getByLabel("เปิดขายสินค้า", { exact: true }).check();
+  await p.getByLabel("หมวดสินค้า", { exact: true }).selectOption("cat-chatgpt");
+  await p
+    .getByLabel("อัปโหลดรูปสินค้าใหม่ (ไม่เกิน 5 MB)", { exact: true })
+    .setInputFiles({
+      name: "product.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR2kAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+  await p.getByRole("button", { name: "บันทึกสินค้า", exact: true }).click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "บันทึกเรียบร้อยแล้ว" })
+    .waitFor();
+  assert.equal(products[0].price, 25);
+  assert(uploaded);
+  assert(
+    products[0].image_url.includes("/storage/v1/object/public/product-images/"),
+  );
+  await p.getByRole("button", { name: "สต็อกสินค้า", exact: true }).click();
+  await p
+    .getByLabel("เติมสต็อก (1 โค้ดต่อบรรทัด สูงสุด 200 รายการ)", {
+      exact: true,
+    })
+    .fill("CODE-1\nCODE-2");
+  await p.getByRole("button", { name: "เติมสต็อก", exact: true }).click();
+  await p.getByText("CODE-1", { exact: true }).waitFor();
+  assert.equal(stock.length, 2);
+  await p
+    .getByRole("button", { name: "แก้ไขโค้ด", exact: true })
+    .first()
+    .click();
+  await p.getByLabel("แก้ไขโค้ด", { exact: true }).fill("CODE-EDIT");
+  await p.getByRole("button", { name: "บันทึกโค้ด", exact: true }).click();
+  await p.getByText("CODE-EDIT", { exact: true }).waitFor();
+  p.on("dialog", (d) => d.accept());
+  await p.getByRole("button", { name: "ลบโค้ด", exact: true }).first().click();
+  await p.waitForFunction(() => !document.body.innerText.includes("CODE-EDIT"));
+  assert.equal(stock.length, 1);
+  await p
+    .getByLabel("เติมหลายอีเมล", { exact: true })
+    .fill(
+      "one@example.com | 4 | delivery-one\ntwo@example.com | 3 | delivery-two",
+    );
+  await p.getByRole("button", { name: "บันทึกหลายอีเมล", exact: true }).click();
+  await p.getByText("one@example.com", { exact: true }).waitFor();
+  assert.equal(batches.length, 2);
+  assert.equal(
+    batches.reduce((n, x) => n + x.remaining, 0),
+    7,
+  );
+  await p
+    .getByRole("button", { name: "แก้ไขอีเมลและจำนวน", exact: true })
+    .first()
+    .click();
+  await p.getByLabel("จำนวนสิทธิ์คงเหลือ", { exact: true }).fill("2");
+  await p.getByLabel("ข้อมูลส่งมอบ", { exact: true }).fill("updated-delivery");
+  await p
+    .getByRole("button", { name: "บันทึกอีเมลและจำนวน", exact: true })
+    .click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "บันทึกสต็อกอีเมลเรียบร้อยแล้ว" })
+    .waitFor();
+  assert.equal(batches[0].remaining, 2);
+  assert.equal(batches[0].delivery_info, "updated-delivery");
+  await p.getByRole("button", { name: "ลบอีเมล", exact: true }).last().click();
+  await p.waitForFunction(
+    () => !document.body.innerText.includes("two@example.com"),
+  );
+  assert.equal(batches.length, 1);
+  await p.getByRole("button", { name: "ข้อความหน้าร้าน", exact: true }).click();
+  await p.getByLabel("หัวข้อหน้าร้าน", { exact: true }).fill("ร้านใหม่ของเรา");
+  await p.getByLabel("ช่องทางติดต่อ", { exact: true }).fill("LINE @test");
+  await p
+    .getByRole("button", { name: "บันทึกข้อความหน้าร้าน", exact: true })
+    .click();
+  await p
+    .getByRole("heading", { name: "ร้านใหม่ของเรา", exact: true })
+    .waitFor();
+  assert.equal(settings.contact_text, "LINE @test");
+  assert.equal(errors.length, 0, errors.join("\n"));
+  await p.getByRole("button", { name: "บัญชีธนาคาร", exact: true }).click();
+  await p.getByText("99 / 99", { exact: true }).waitFor();
+  await p.getByText("ใช้การตรวจโดยแอดมินในรอบนี้", { exact: true }).waitFor();
+  await p.getByLabel("ชื่อธนาคาร", { exact: true }).fill("ธนาคารทดสอบ");
+  await p
+    .getByRole("button", { name: "บันทึกบัญชีธนาคาร", exact: true })
+    .click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "กรุณากรอกข้อมูลบัญชีธนาคารให้ครบ" })
+    .waitFor();
+  await p.getByLabel("ชื่อบัญชี", { exact: true }).fill("ชื่อบัญชีทดสอบ");
+  await p.getByLabel("เลขบัญชี", { exact: true }).fill("001-234-5678");
+  await p
+    .getByRole("button", { name: "บันทึกบัญชีธนาคาร", exact: true })
+    .click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "บันทึกเรียบร้อยแล้ว" })
+    .waitFor();
+  await p.getByRole("button", { name: "เติมเงิน", exact: true }).click();
+  await p.locator(".bank").filter({ hasText: "001-234-5678" }).waitFor();
+  await p
+    .getByText("โควต้าตรวจอัตโนมัติรอบนี้หมดแล้ว", { exact: false })
+    .waitFor();
+  assert.equal(settings.bank_account_number, "001-234-5678");
+  await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
+  await p.getByRole("button", { name: "หมวดหมู่สินค้า", exact: true }).click();
+  await p.getByLabel("ชื่อหมวดหมู่", { exact: true }).fill("แอปอื่น");
+  await p.getByRole("button", { name: "เพิ่มหมวดหมู่", exact: true }).click();
+  await p.getByRole("button", { name: "แก้หมวด แอปอื่น", exact: true }).click();
+  await p.getByLabel("ชื่อหมวดหมู่", { exact: true }).fill("แอปเพิ่มเติม");
+  await p
+    .getByLabel("คำอธิบายหมวดหมู่", { exact: true })
+    .fill("เลือกแพ็กเกจตามระยะเวลาที่ต้องการ");
+  await p
+    .getByLabel("ลิงก์รูปหมวดหมู่ (https://)", { exact: true })
+    .fill("https://example.com/category.png");
+  await p.getByRole("button", { name: "บันทึกหมวดหมู่", exact: true }).click();
+  await p
+    .getByRole("button", { name: "แก้หมวด แอปเพิ่มเติม", exact: true })
+    .waitFor();
+  await p.getByRole("button", { name: "สินค้าและราคา", exact: true }).click();
+  await p
+    .getByRole("button", { name: "แก้ไข สินค้าแก้ไข", exact: true })
+    .click();
+  await p
+    .getByLabel("หมวดสินค้า", { exact: true })
+    .selectOption(categories.find((c) => c.name === "แอปเพิ่มเติม").id);
+  await p.getByRole("button", { name: "บันทึกสินค้า", exact: true }).click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "บันทึกเรียบร้อยแล้ว" })
+    .waitFor();
+  await p.getByRole("button", { name: "สินค้า", exact: true }).click();
+  await p.locator(".category-card").filter({ hasText: "แอปเพิ่มเติม" }).click();
+  await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
+  await p.getByRole("link", { name: "ดูรายละเอียด", exact: true }).click();
+  await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
+  await p.getByText("คงเหลือ 3 สิทธิ์", { exact: true }).waitFor();
+  await p.getByText("รายละเอียดสินค้า", { exact: true }).waitFor();
+  await p.reload();
+  await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
+  await p.getByRole("link", { name: "หมวดหมู่สินค้า", exact: true }).click();
+  await p.locator(".category-card").filter({ hasText: "Netflix" }).click();
+  await p.getByText("ยังไม่มีสินค้าในหมวดนี้", { exact: true }).waitFor();
+  await p.setViewportSize({ width: 390, height: 844 });
+  assert(
+    await p.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  );
+  assert.equal(
+    categories.find((c) => c.name === "แอปเพิ่มเติม").description,
+    "เลือกแพ็กเกจตามระยะเวลาที่ต้องการ",
+  );
+  assert.equal(errors.length, 0, errors.join("\n"));
+  await p.getByRole("link", { name: "หมวดหมู่สินค้า", exact: true }).click();
+  assert(
+    await p.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  );
+  await p.locator(".category-card").filter({ hasText: "แอปเพิ่มเติม" }).click();
+  await p.getByRole("link", { name: "ดูรายละเอียด", exact: true }).click();
+  await p.getByRole("heading", { name: "สินค้าแก้ไข", exact: true }).waitFor();
+  assert(
+    await p.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  );
+  await p.screenshot({ path: "/tmp/catalog-mobile.png", fullPage: true });
+  console.log(
+    "PASS: category cards, package drilldown, detail refresh, aggregate stock display, editable category metadata;  SlipOK 99-limit UI and manual fallback; category add/rename/product assignment/storefront filtering; multi-email quantities and delivery add/edit/delete; edit product + price + uploaded image; add/edit/delete stock; save storefront text and render immediately; validate and save bank account and show on topup; mobile width; no browser exceptions",
+  );
+  await b.close();
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

@@ -40,6 +40,7 @@ export default function AdminStore({
   onChanged: () => Promise<void>;
 }) {
   const [section, setSection] = useState("products"),
+    [filterCategory, setFilterCategory] = useState("all"),
     [products, setProducts] = useState<Product[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
     [product, setProduct] = useState<Product>(emptyProduct),
@@ -364,27 +365,64 @@ export default function AdminStore({
                 >
                   + เพิ่มสินค้าใหม่
                 </button>
-                {products.map((p) => (
-                  <div className="admin-product" key={p.id}>
-                    {p.image_url && <img src={p.image_url} alt="" />}
-                    <div>
-                      <strong>{p.title}</strong>
-                      <small>
-                        ฿{p.price} · {p.active ? "เปิดขาย" : "ปิดขาย"}
-                      </small>
+                <label>
+                  แสดงสินค้าในหมวด
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                  >
+                    <option value="all">ทุกหมวดหมู่</option>
+                    <option value="uncategorized">ยังไม่จัดหมวด</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p>
+                  หนึ่งสินค้า = หนึ่งแพ็กเกจ เช่น Netflix 1 เดือน และ Netflix 3
+                  เดือน มีราคาและสต็อกแยกกัน
+                </p>
+                {products
+                  .filter(
+                    (p) =>
+                      filterCategory === "all" ||
+                      (p.category_id || "uncategorized") === filterCategory,
+                  )
+                  .map((p) => (
+                    <div className="admin-product" key={p.id}>
+                      {p.image_url && <img src={p.image_url} alt="" />}
+                      <div>
+                        <strong>{p.title}</strong>
+                        <small>
+                          {categories.find((c) => c.id === p.category_id)
+                            ?.name || "ยังไม่จัดหมวด"}{" "}
+                          · ฿{p.price} · {p.active ? "เปิดขาย" : "ปิดขาย"}
+                        </small>
+                      </div>
+                      <button
+                        className="outline"
+                        onClick={() => {
+                          setProduct(p);
+                          setEditing(true);
+                          setImage(null);
+                        }}
+                      >
+                        แก้ไข {p.title}
+                      </button>
+                      <button
+                        className="outline"
+                        onClick={() => {
+                          setSelected(p.id);
+                          setPage(0);
+                          setSection("stock");
+                        }}
+                      >
+                        จัดการสต็อก {p.title}
+                      </button>
                     </div>
-                    <button
-                      className="outline"
-                      onClick={() => {
-                        setProduct(p);
-                        setEditing(true);
-                        setImage(null);
-                      }}
-                    >
-                      แก้ไข {p.title}
-                    </button>
-                  </div>
-                ))}
+                  ))}
               </div>
               <form onSubmit={saveProduct}>
                 <h3>{editing ? "แก้ไขสินค้า" : "เพิ่มสินค้าใหม่"}</h3>
@@ -518,10 +556,21 @@ export default function AdminStore({
                   }}
                 >
                   <option value="">เลือกสินค้า</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
+                  {[
+                    ...categories,
+                    { id: "uncategorized", name: "ยังไม่จัดหมวด" },
+                  ].map((c) => (
+                    <optgroup key={c.id} label={c.name}>
+                      {products
+                        .filter(
+                          (p) => (p.category_id || "uncategorized") === c.id,
+                        )
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title}
+                          </option>
+                        ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
