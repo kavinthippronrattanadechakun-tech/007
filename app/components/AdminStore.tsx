@@ -38,19 +38,6 @@ export default function AdminStore({
   db: SupabaseClient;
   onChanged: () => Promise<void>;
 }) {
-  const [slipMode, setSlipMode] = useState("manual"),
-    [slipProvider, setSlipProvider] = useState("");
-  useEffect(() => {
-    fetch("/api/topup")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) {
-          setSlipMode(data.mode);
-          setSlipProvider(data.provider || "");
-        }
-      })
-      .catch(() => {});
-  }, []);
   const [section, setSection] = useState("products"),
     [products, setProducts] = useState<Product[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
@@ -641,13 +628,6 @@ export default function AdminStore({
           )}
           {(section === "settings" || section === "bank") && (
             <form onSubmit={saveSettings}>
-              {section === "bank" && (
-                <p role="status">
-                  {slipMode === "automatic"
-                    ? `ตรวจสลิปอัตโนมัติ: ${slipProvider} (เพิ่มยอดเฉพาะผลตรวจที่ครบถ้วนและผ่านเงื่อนไข)`
-                    : "ตรวจสลิป: รอผู้ดูแล ระบบอัตโนมัติยังไม่ได้เชื่อมผู้ให้บริการ"}
-                </p>
-              )}
               {section === "bank" && (
                 <p>
                   ข้อมูลนี้จะแสดงให้ลูกค้าเห็นในหน้าเติมเงิน
