@@ -2,27 +2,73 @@ export class SlipOKError extends Error {
   retryable: boolean;
   quota: boolean;
   uncertain: boolean;
+  providerCode?: number;
   constructor(
     message: string,
-    { retryable = false, quota = false, uncertain = false } = {},
+    {
+      retryable = false,
+      quota = false,
+      uncertain = false,
+      providerCode,
+    }: {
+      retryable?: boolean;
+      quota?: boolean;
+      uncertain?: boolean;
+      providerCode?: number;
+    } = {},
   ) {
     super(message);
     this.retryable = retryable;
     this.quota = quota;
     this.uncertain = uncertain;
+    this.providerCode = providerCode;
   }
 }
+function setting(name: string) {
+  let value = process.env[name]?.trim() || "";
+  if (value.startsWith(name + "=")) value = value.slice(name.length + 1).trim();
+  if (
+    (value[0] === '"' && value[value.length - 1] === '"') ||
+    (value[0] === "'" && value[value.length - 1] === "'")
+  )
+    value = value.slice(1, -1).trim();
+  return value;
+}
+function branchSetting() {
+  let branch = setting("SLIPOK_BRANCH_ID");
+  if (branch.startsWith("https://")) {
+    try {
+      const url = new URL(branch);
+      if (url.hostname !== "api.slipok.com" || url.username || url.password)
+        return "";
+      branch = url.pathname;
+    } catch {
+      return "";
+    }
+  }
+  const match = branch.match(
+    /^\/api\/line\/apikey\/([A-Za-z0-9_-]+)(?:\/quota)?\/?$/,
+  );
+  return match ? match[1] : branch;
+}
+export function slipOKSetup() {
+  const branch = branchSetting(),
+    day = Number(setting("SLIPOK_CYCLE_DAY") || 8);
+  return {
+    key_present: !!setting("SLIPOK_API_KEY"),
+    branch_present: !!setting("SLIPOK_BRANCH_ID"),
+    branch_format_valid: /^[A-Za-z0-9_-]{1,100}$/.test(branch),
+    cycle_valid: Number.isInteger(day) && day >= 1 && day <= 31,
+  };
+}
 export function slipOKConfig() {
-  const key = process.env.SLIPOK_API_KEY?.trim(),
-    branch = process.env.SLIPOK_BRANCH_ID?.trim(),
-    day = Number(process.env.SLIPOK_CYCLE_DAY || 8);
-  return key &&
-    branch &&
-    /^\d+$/.test(branch) &&
-    Number.isInteger(day) &&
-    day >= 1 &&
-    day <= 31
-    ? { key, branch, day }
+  const flags = slipOKSetup();
+  return flags.key_present && flags.branch_format_valid && flags.cycle_valid
+    ? {
+        key: setting("SLIPOK_API_KEY"),
+        branch: branchSetting(),
+        day: Number(setting("SLIPOK_CYCLE_DAY") || 8),
+      }
     : null;
 }
 const aliases: [string, string[]][] = [
@@ -165,7 +211,10 @@ export async function getSlipOKQuota(
     body.data.quota < 0 ||
     !Number.isFinite(body.data.overQuota)
   )
-    throw new SlipOKError("ตรวจโควต้า SlipOK ไม่สำเร็จ", { retryable: true });
+    throw new SlipOKError("ตรวจโควต้า SlipOK ไม่สำเร็จ", {
+      retryable: true,
+      providerCode: Number(body?.code) || undefined,
+    });
   return body.data.overQuota > 0 ? 0 : Math.floor(body.data.quota);
 }
 export async function verifySlipOK(
