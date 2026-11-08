@@ -1,13 +1,16 @@
 "use client";
 import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { supabaseUrl } from "../../../lib/supabase-config";
+import useEmailCooldown from "../../components/useEmailCooldown";
+import { supabaseUrl, authErrorMessage } from "../../../lib/supabase-config";
 export default function Forgot() {
+  const emailCooldown = useEmailCooldown();
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy || emailCooldown.remaining > 0) return;
     setBusy(true);
     setMessage("");
     try {
@@ -19,7 +22,13 @@ export default function Forgot() {
       const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: window.location.origin + "/auth/confirm",
       });
-      if (error) throw error;
+      if (error) {
+        if (error.status === 429 || error.code === "over_email_send_rate_limit")
+          emailCooldown.start();
+        setMessage(authErrorMessage(error.message, error.code));
+        return;
+      }
+      emailCooldown.start();
       setMessage(
         "หากมีบัญชีอีเมลนี้ ระบบจะส่งลิงก์ตั้งรหัสผ่านใหม่ กรุณาตรวจกล่องจดหมายและสแปม",
       );
@@ -46,8 +55,12 @@ export default function Forgot() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </label>
-          <button disabled={busy}>
-            {busy ? "กำลังส่งลิงก์…" : "ส่งลิงก์รีเซ็ตรหัสผ่าน"}
+          <button disabled={busy || emailCooldown.remaining > 0}>
+            {busy
+              ? "กำลังส่งลิงก์…"
+              : emailCooldown.remaining > 0
+                ? `รอก่อนส่งอีกครั้ง (${emailCooldown.remaining} วินาที)`
+                : "ส่งลิงก์รีเซ็ตรหัสผ่าน"}
           </button>
         </form>
         {message && <p role="status">{message}</p>}

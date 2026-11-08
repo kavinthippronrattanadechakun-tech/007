@@ -7,6 +7,7 @@ import {
 } from "@supabase/supabase-js";
 import { supabaseUrl, authErrorMessage } from "../lib/supabase-config";
 import type { PublicStoreSnapshot } from "../lib/public-store";
+import useEmailCooldown from "./components/useEmailCooldown";
 import AdminStore from "./components/AdminStore";
 import Catalog from "./components/Catalog";
 import OrderDetails from "./components/OrderDetails";
@@ -82,6 +83,7 @@ export default function Home({
 }: {
   initialData: PublicStoreSnapshot | null;
 }) {
+  const emailCooldown = useEmailCooldown();
   const [storeReady, setStoreReady] = useState(!!initialData),
     [storeError, setStoreError] = useState(false),
     [authReady, setAuthReady] = useState(false),
@@ -266,6 +268,16 @@ export default function Home({
     };
   }, []);
   async function auth(mode: "signup" | "signin") {
+    if (busy) return;
+    if (mode === "signup" && emailCooldown.remaining > 0) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || !password) {
+      setMsg("กรุณากรอกอีเมลและรหัสผ่านให้ถูกต้อง");
+      return;
+    }
+    if (mode === "signup" && password.length < 6) {
+      setMsg("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+      return;
+    }
     const s = db();
     if (!s) {
       setMsg("ระบบเข้าสู่ระบบยังไม่พร้อมใช้งาน กรุณาติดต่อร้านค้า");
@@ -284,9 +296,16 @@ export default function Home({
               },
             })
           : await s.auth.signInWithPassword(credentials);
+      if (
+        mode === "signup" &&
+        (!result.error ||
+          result.error.status === 429 ||
+          result.error.code === "over_email_send_rate_limit")
+      )
+        emailCooldown.start();
       setMsg(
         result.error
-          ? authErrorMessage(result.error.message)
+          ? authErrorMessage(result.error.message, result.error.code)
           : mode === "signup"
             ? "สมัครสำเร็จ โปรดตรวจอีเมลเพื่อยืนยันบัญชี (ถ้าเปิดใช้งาน)"
             : "เข้าสู่ระบบสำเร็จ",
@@ -514,10 +533,12 @@ export default function Home({
               </button>
               <button
                 className="outline"
-                disabled={!ready || busy}
+                disabled={!ready || busy || emailCooldown.remaining > 0}
                 onClick={() => auth("signup")}
               >
-                สมัครสมาชิก
+                {emailCooldown.remaining > 0
+                  ? `รอก่อนส่งอีกครั้ง (${emailCooldown.remaining} วินาที)`
+                  : "สมัครสมาชิก"}
               </button>
             </div>
             <p>
