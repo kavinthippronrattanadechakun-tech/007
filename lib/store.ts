@@ -7,6 +7,7 @@ export type Product = {
   delivery_type: string;
   image_url: string;
   category_id: string | null;
+  subcategory: string;
   requires_customer_email: boolean;
   duration_days: number | null;
 };
@@ -32,3 +33,9 @@ export type Category = {
   description: string;
   image_url: string;
 };
+
+export const chatGPTSubcategories = [
+  { id: "share4", name: "หาร 4" },
+  { id: "share3", name: "หาร 3" },
+  { id: "private", name: "ส่วนตัว" },
+];

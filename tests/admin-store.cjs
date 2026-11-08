@@ -621,6 +621,26 @@ const defaults = {
     await p.evaluate(() => window.__copied),
     /7 วัน \(168 ชั่วโมง\)/,
   );
+  await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
+  await p
+    .getByRole("button", { name: "แก้ไข สินค้าแก้ไข", exact: true })
+    .click();
+  await p
+    .getByLabel("หมวดย่อย ChatGPT", { exact: true })
+    .selectOption("private");
+  await p.getByRole("button", { name: "บันทึกสินค้า", exact: true }).click();
+  await p
+    .getByRole("status")
+    .filter({ hasText: "บันทึกเรียบร้อยแล้ว" })
+    .waitFor();
+  assert.equal(products[0].subcategory, "private");
+  await p
+    .getByRole("button", { name: "แก้ไข สินค้าแก้ไข", exact: true })
+    .click();
+  assert.equal(
+    await p.getByLabel("หมวดย่อย ChatGPT", { exact: true }).inputValue(),
+    "private",
+  );
   console.log(
     "PASS: category cards, package drilldown, detail refresh, aggregate stock display, editable category metadata;  SlipOK 99-limit UI and manual fallback; category add/rename/product assignment/storefront filtering; multi-email quantities and delivery add/edit/delete; edit product + price + uploaded image; add/edit/delete stock; save storefront text and render immediately; validate and save bank account and show on topup; mobile width; no browser exceptions",
   );

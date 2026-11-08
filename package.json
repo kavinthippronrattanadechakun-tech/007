@@ -16,7 +16,8 @@
     "test:password-reset": "node tests/password-reset.cjs",
     "test:expiry": "node --experimental-strip-types --test tests/order-expiry.test.mjs",
     "test:restock-queue": "node tests/restock-queue.cjs",
-    "test:stability": "node tests/storefront-stability.cjs"
+    "test:stability": "node tests/storefront-stability.cjs",
+    "test:subcategories": "node tests/chatgpt-subcategories.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

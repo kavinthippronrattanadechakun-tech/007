@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Product, Category } from "../../lib/store";
+import {
+  chatGPTSubcategories,
+  type Product,
+  type Category,
+} from "../../lib/store";
 export default function Catalog({
   products,
   categories,
@@ -72,15 +76,38 @@ export default function Catalog({
   const selected = groups.find((c) => c.id === path[0]),
     product = products.find(
       (p) =>
-        p.id === path[1] && (p.category_id || "uncategorized") === selected?.id,
+        p.id === (path[1] === "group" ? path[3] : path[1]) &&
+        (p.category_id || "uncategorized") === selected?.id,
     );
-  const items = selected
+  const categoryItems = selected
     ? products.filter((p) => (p.category_id || "uncategorized") === selected.id)
     : [];
+  const subcategories = [
+    ...chatGPTSubcategories,
+    ...(categoryItems.some((p) => !p.subcategory)
+      ? [{ id: "other", name: "แพ็กเกจอื่น" }]
+      : []),
+  ];
+  const hasSubcategories =
+    !!selected &&
+    (selected.name.trim().toLowerCase() === "chatgpt" ||
+      categoryItems.some((p) => !!p.subcategory));
+  const subgroup = subcategories.find(
+    (g) => g.id === (path[1] === "group" ? path[2] : product?.subcategory),
+  );
+  const items = subgroup
+    ? categoryItems.filter((p) => (p.subcategory || "other") === subgroup.id)
+    : categoryItems;
   const link = (c: string, p?: string) =>
     "#catalog/" +
     encodeURIComponent(c) +
     (p ? "/" + encodeURIComponent(p) : "");
+  const groupLink = (c: string, g: string) =>
+    link(c) + "/group/" + encodeURIComponent(g);
+  const productLink = (c: string, p: Product) =>
+    p.subcategory
+      ? groupLink(c, p.subcategory) + "/" + encodeURIComponent(p.id)
+      : link(c, p.id);
   function availability(p: Product) {
     return !p.active
       ? "ยังไม่เปิดขาย"
@@ -104,6 +131,12 @@ export default function Catalog({
           <>
             <span>/</span>
             <a href={link(selected.id)}>{selected.name}</a>
+          </>
+        )}
+        {selected && subgroup && (
+          <>
+            <span>/</span>
+            <a href={groupLink(selected.id, subgroup.id)}>{subgroup.name}</a>
           </>
         )}
         {product && (
@@ -157,8 +190,14 @@ export default function Catalog({
         </>
       ) : product ? (
         <>
-          <a className="catalog-back" href={link(selected.id)}>
+          <a
+            className="catalog-back"
+            href={
+              subgroup ? groupLink(selected.id, subgroup.id) : link(selected.id)
+            }
+          >
             ← กลับไปเลือกแพ็กเกจ {selected.name}
+            {subgroup ? " · " + subgroup.name : ""}
           </a>
           <article className="panel product-detail">
             {product.image_url && (
@@ -228,13 +267,65 @@ export default function Catalog({
             </div>
           </article>
         </>
-      ) : (
+      ) : hasSubcategories && !subgroup ? (
         <>
           <a className="catalog-back" href="#catalog">
             ← หมวดหมู่ทั้งหมด
           </a>
           <div className="section-title">
-            <h2>{selected.name}</h2>
+            <h2>{selected.name} · เลือกประเภท</h2>
+            <p>เลือกหาร 4 หาร 3 หรือส่วนตัว แล้วเลือกระยะเวลาที่ต้องการ</p>
+          </div>
+          <div className="grid category-grid subcategory-grid">
+            {subcategories.map((g) => {
+              const ps = categoryItems.filter(
+                (p) => (p.subcategory || "other") === g.id,
+              );
+              return (
+                <a
+                  className="panel category-card subcategory-card"
+                  key={g.id}
+                  href={groupLink(selected.id, g.id)}
+                >
+                  <span className="category-symbol">
+                    {g.id === "share4"
+                      ? "4"
+                      : g.id === "share3"
+                        ? "3"
+                        : g.id === "private"
+                          ? "1"
+                          : "+"}
+                  </span>
+                  <div>
+                    <h3>{g.name}</h3>
+                    <p>
+                      {selected.name} · {g.name}
+                    </p>
+                    <small>
+                      {ps.length} แพ็กเกจ
+                      {ps.length > 0 &&
+                        ` · เริ่มต้น ฿${Math.min(...ps.map((p) => p.price))}`}
+                    </small>
+                  </div>
+                  <span className="catalog-cta">เลือกแพ็กเกจ →</span>
+                </a>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <a
+            className="catalog-back"
+            href={subgroup ? link(selected.id) : "#catalog"}
+          >
+            ← {subgroup ? "เลือกประเภท " + selected.name : "หมวดหมู่ทั้งหมด"}
+          </a>
+          <div className="section-title">
+            <h2>
+              {selected.name}
+              {subgroup ? " · " + subgroup.name : ""}
+            </h2>
             <p className="product-description">
               {selected.description ||
                 "เลือกแพ็กเกจเพื่อดูรายละเอียดและสั่งซื้อ"}
@@ -256,7 +347,7 @@ export default function Catalog({
                 <p className="product-summary">{p.description}</p>
                 <div className="product-bottom">
                   <strong>฿{p.price}</strong>
-                  <a className="catalog-cta" href={link(selected.id, p.id)}>
+                  <a className="catalog-cta" href={productLink(selected.id, p)}>
                     ดูรายละเอียด
                   </a>
                 </div>
