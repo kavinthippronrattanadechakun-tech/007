@@ -30,6 +30,7 @@ const labels: Record<keyof StoreSettings, string> = {
   bank_name: "ชื่อธนาคาร",
   bank_account_name: "ชื่อบัญชี",
   bank_account_number: "เลขบัญชี",
+  bank_topup_note: "หมายเหตุหน้าเติมเงิน",
   brand_name: "ชื่อร้าน",
   hero_title: "หัวข้อหน้าร้าน",
   hero_description: "คำอธิบายหน้าร้าน",
@@ -822,6 +823,11 @@ export default function AdminStore({
                                       key === "contact_text"
                                     ? 1000
                                     : 2000
+                      }
+                      placeholder={
+                        key === "bank_topup_note"
+                          ? "ข้อความที่ให้ลูกค้าเห็นในหน้าเติมเงิน เว้นว่างเพื่อใช้คำแนะนำเดิม"
+                          : undefined
                       }
                       value={settings[key]}
                       onChange={(e) =>

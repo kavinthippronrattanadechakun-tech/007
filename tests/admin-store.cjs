@@ -504,6 +504,9 @@ const defaults = {
   await p.getByLabel("ชื่อบัญชี", { exact: true }).fill("ชื่อบัญชีทดสอบ");
   await p.getByLabel("เลขบัญชี", { exact: true }).fill("001-234-5678");
   await p
+    .getByLabel("หมายเหตุหน้าเติมเงิน", { exact: true })
+    .fill("กรุณาตรวจชื่อบัญชีก่อนโอน\nโอนแล้วแนบสลิปที่นี่");
+  await p
     .getByRole("button", { name: "บันทึกบัญชีธนาคาร", exact: true })
     .click();
   await p
@@ -516,6 +519,14 @@ const defaults = {
     .getByText("โควต้าตรวจอัตโนมัติรอบนี้หมดแล้ว", { exact: false })
     .waitFor();
   assert.equal(settings.bank_account_number, "001-234-5678");
+  assert.equal(
+    await p.locator(".topup-note").innerText(),
+    "กรุณาตรวจชื่อบัญชีก่อนโอน\nโอนแล้วแนบสลิปที่นี่",
+  );
+  assert.equal(
+    settings.bank_topup_note,
+    "กรุณาตรวจชื่อบัญชีก่อนโอน\nโอนแล้วแนบสลิปที่นี่",
+  );
   await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
   await p.getByRole("button", { name: "หมวดหมู่สินค้า", exact: true }).click();
   await p.getByLabel("ชื่อหมวดหมู่", { exact: true }).fill("แอปอื่น");
