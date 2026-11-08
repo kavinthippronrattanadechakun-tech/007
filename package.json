@@ -8,7 +8,9 @@
     "start": "next start",
     "test:admin": "node tests/admin-store.cjs",
     "test:stock": "node --experimental-strip-types --test tests/email-stock.test.mjs",
-    "test:confirmation": "node tests/email-confirmation.cjs"
+    "test:confirmation": "node tests/email-confirmation.cjs",
+    "test:slipok": "node --experimental-strip-types --test tests/slipok.test.mjs",
+    "test:slipok-route": "node --test tests/slipok-route.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import EmailStock from "./EmailStock";
 import AdminCategories from "./AdminCategories";
+import SlipOKQuota from "./SlipOKQuota";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   defaultSettings,
@@ -626,6 +627,7 @@ export default function AdminStore({
               )}
             </>
           )}
+          {section === "bank" && <SlipOKQuota db={db} />}
           {(section === "settings" || section === "bank") && (
             <form onSubmit={saveSettings}>
               {section === "bank" && (
