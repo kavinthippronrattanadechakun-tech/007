@@ -4,6 +4,7 @@ import { supabaseUrl } from "../../../lib/supabase-config";
 import { createHash } from "crypto";
 import {
   slipOKConfig,
+  slipOKSetup,
   bankCode,
   validSlipImage,
   getSlipOKQuota,
@@ -17,7 +18,10 @@ let quotaCache: { until: number; quota: number } | null = null;
 export async function GET() {
   const config = slipOKConfig();
   if (!config)
-    return Response.json({ mode: "manual", reason: "not_configured" });
+    return Response.json(
+      { mode: "manual", reason: "not_configured", setup: slipOKSetup() },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   try {
     const { data, error } = await admin().rpc("slipok_usage_status", {
       p_day: config.day,
@@ -42,9 +46,13 @@ export async function GET() {
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (e) {
     return Response.json(
-      { mode: "manual", reason: "unavailable" },
+      {
+        mode: "manual",
+        reason: "unavailable",
+        provider_code: e instanceof SlipOKError ? e.providerCode || null : null,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   }

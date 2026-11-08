@@ -7,6 +7,8 @@ import {
   verifySlipOK,
   getSlipOKQuota,
   SlipOKError,
+  slipOKConfig,
+  slipOKSetup,
 } from "../lib/slipok.ts";
 const now = Date.parse("2026-11-08T08:00:00Z"),
   expected = {
@@ -124,11 +126,50 @@ test("quota errors and overage fail closed before slip verification", async () =
       );
     }
     globalThis.fetch = async () =>
-      new Response(JSON.stringify({ success: false }), { status: 401 });
+      new Response(JSON.stringify({ success: false, code: 1002 }), {
+        status: 401,
+      });
     await assert.rejects(
       getSlipOKQuota({ key: "test", branch: "123", day: 8 }),
     );
   } finally {
     globalThis.fetch = original;
+  }
+});
+
+test("configuration accepts copied official endpoint URLs and quoted values without revealing credentials", () => {
+  const saved = {
+    key: process.env.SLIPOK_API_KEY,
+    branch: process.env.SLIPOK_BRANCH_ID,
+    day: process.env.SLIPOK_CYCLE_DAY,
+  };
+  try {
+    process.env.SLIPOK_API_KEY = '"test-key"';
+    process.env.SLIPOK_CYCLE_DAY = "8";
+    for (const value of [
+      "123",
+      "https://api.slipok.com/api/line/apikey/123",
+      "/api/line/apikey/123/quota",
+      'SLIPOK_BRANCH_ID="123"',
+    ]) {
+      process.env.SLIPOK_BRANCH_ID = value;
+      assert.deepEqual(slipOKConfig(), {
+        key: "test-key",
+        branch: "123",
+        day: 8,
+      });
+      assert(!JSON.stringify(slipOKSetup()).includes("test-key"));
+    }
+    process.env.SLIPOK_BRANCH_ID =
+      "https://untrusted.example/api/line/apikey/123";
+    assert.equal(slipOKConfig(), null);
+  } finally {
+    for (const [key, value] of [
+      ["SLIPOK_API_KEY", saved.key],
+      ["SLIPOK_BRANCH_ID", saved.branch],
+      ["SLIPOK_CYCLE_DAY", saved.day],
+    ])
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
   }
 });
