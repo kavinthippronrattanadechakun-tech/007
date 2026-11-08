@@ -637,3 +637,45 @@ footer p {
     flex-wrap: wrap;
   }
 }
+.stock-entry {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  margin: 18px 0;
+  padding: 18px;
+  min-width: 0;
+}
+.stock-entry legend {
+  font-weight: 700;
+  padding: 0 8px;
+}
+.stock-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 18px;
+}
+.stock-fields label:last-child,
+.stock-fields p {
+  grid-column: 1/-1;
+}
+.order small,
+.bank small {
+  overflow-wrap: anywhere;
+}
+.order-filters {
+  max-width: 760px;
+}
+.order summary {
+  cursor: pointer;
+}
+.stock-fields input,
+.stock-fields textarea {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .stock-fields {
+    grid-template-columns: 1fr;
+  }
+  .admin-store .order .actions {
+    align-items: flex-start;
+  }
+}

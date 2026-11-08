@@ -8,6 +8,7 @@ import {
 import { supabaseUrl, authErrorMessage } from "../lib/supabase-config";
 import AdminStore from "./components/AdminStore";
 import Catalog from "./components/Catalog";
+import CopyDelivery from "./components/CopyDelivery";
 import {
   defaultSettings,
   type StoreSettings,
@@ -500,11 +501,7 @@ export default function Home() {
                   ฿{o.price} ·{" "}
                   {o.status === "delivered" ? "ส่งสินค้าแล้ว" : "รอดำเนินการ"}
                 </span>
-                {o.delivery && (
-                  <div className="secret">
-                    ข้อมูลสินค้าที่ได้รับ: {o.delivery}
-                  </div>
-                )}
+                {o.delivery && <CopyDelivery text={o.delivery} />}
               </div>
             ))}
           </section>

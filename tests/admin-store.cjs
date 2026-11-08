@@ -201,6 +201,57 @@ const defaults = {
       },
     }),
   );
+  let creditCalls = 0,
+    customerBalance = 100;
+  await p.addInitScript(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async (text) => {
+          window.__copied = text;
+        },
+      },
+    }),
+  );
+  await p.route("**/api/admin/orders?**", (r) =>
+    r.fulfill({
+      json: {
+        rows: [
+          {
+            id: "order-test",
+            user_id: "buyer",
+            user_email: "buyer@example.com",
+            product_title: "สินค้าลูกค้า",
+            price: 25,
+            status: "delivered",
+            created_at: new Date().toISOString(),
+            delivery: "Mail: buyer@example.com\nPassword: secret",
+          },
+        ],
+        hasMore: false,
+      },
+    }),
+  );
+  await p.route("**/api/admin/customers**", (r) => {
+    if (r.request().method() === "POST") {
+      const body = r.request().postDataJSON();
+      assert(body.requestId);
+      assert.equal(body.amount, 50);
+      assert.equal(body.reference, "BANKREF123");
+      creditCalls++;
+      customerBalance += 50;
+      return r.fulfill({ json: { data: { ok: true } } });
+    }
+    return r.fulfill({
+      json: {
+        customer: {
+          id: "22222222-2222-4222-8222-222222222222",
+          email: "buyer@example.com",
+          balance: customerBalance,
+        },
+        history: [],
+      },
+    });
+  });
   await p.goto(process.env.TEST_URL || "http://127.0.0.1:3001");
   await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
   await p.getByRole("heading", { name: "จัดการร้านค้า" }).waitFor();
@@ -251,24 +302,61 @@ const defaults = {
   await p.getByRole("button", { name: "ลบโค้ด", exact: true }).first().click();
   await p.waitForFunction(() => !document.body.innerText.includes("CODE-EDIT"));
   assert.equal(stock.length, 1);
+  const entries = p.locator(".stock-entry");
+  await entries
+    .first()
+    .getByLabel("Mail", { exact: true })
+    .fill("one@example.com");
+  await entries.first().getByLabel("สต็อกจำนวน", { exact: true }).fill("4");
+  await entries
+    .first()
+    .getByLabel("Password", { exact: true })
+    .fill("pass-one");
   await p
-    .getByLabel("เติมหลายอีเมล", { exact: true })
-    .fill(
-      "one@example.com | 4 | delivery-one\ntwo@example.com | 3 | delivery-two",
-    );
-  await p.getByRole("button", { name: "บันทึกหลายอีเมล", exact: true }).click();
+    .getByRole("button", { name: "+ เพิ่ม Mail / จออีกรายการ", exact: true })
+    .click();
+  await entries
+    .nth(1)
+    .getByLabel("Mail", { exact: true })
+    .fill("two@example.com");
+  await entries.nth(1).getByLabel("Password", { exact: true }).fill("pass-two");
+  await entries
+    .nth(1)
+    .getByLabel("รูปแบบสต็อก", { exact: true })
+    .selectOption("screen");
+  await entries.nth(1).getByLabel("Screen", { exact: true }).fill("2");
+  await entries.nth(1).getByLabel("Pin (ถ้ามี)", { exact: true }).fill("0123");
+  assert.equal(
+    await entries
+      .nth(1)
+      .getByLabel("สต็อกจำนวน", { exact: true })
+      .getAttribute("max"),
+    "1",
+  );
+  await p
+    .getByRole("button", { name: "บันทึกสต็อก Mail", exact: true })
+    .click();
   await p.getByText("one@example.com", { exact: true }).waitFor();
   assert.equal(batches.length, 2);
   assert.equal(
     batches.reduce((n, x) => n + x.remaining, 0),
-    7,
+    5,
   );
+  assert.equal(batches[1].pin, "0123");
+  assert.equal(batches[1].delivery_info, "");
   await p
     .getByRole("button", { name: "แก้ไขอีเมลและจำนวน", exact: true })
     .first()
     .click();
-  await p.getByLabel("จำนวนสิทธิ์คงเหลือ", { exact: true }).fill("2");
-  await p.getByLabel("ข้อมูลส่งมอบ", { exact: true }).fill("updated-delivery");
+  const editForm = p
+    .locator("form")
+    .filter({
+      has: p.getByRole("heading", { name: "แก้ไขสต็อก Mail", exact: true }),
+    });
+  await editForm.getByLabel("สต็อกจำนวน", { exact: true }).fill("2");
+  await editForm
+    .getByLabel("ข้อมูลเพิ่มเติม (ถ้ามี)", { exact: true })
+    .fill("updated-delivery");
   await p
     .getByRole("button", { name: "บันทึกอีเมลและจำนวน", exact: true })
     .click();
@@ -283,6 +371,47 @@ const defaults = {
     () => !document.body.innerText.includes("two@example.com"),
   );
   assert.equal(batches.length, 1);
+  await p
+    .getByRole("button", { name: "คำสั่งซื้อลูกค้า", exact: true })
+    .click();
+  await p
+    .getByText("บัญชีลูกค้า: buyer@example.com", { exact: true })
+    .waitFor();
+  await p.getByText("ดูข้อมูลที่ส่งให้ลูกค้า", { exact: true }).click();
+  await p
+    .getByRole("button", { name: "คัดลอกข้อมูลทั้งหมด", exact: true })
+    .click();
+  await p.getByText("คัดลอกแล้ว", { exact: true }).waitFor();
+  assert.equal(
+    await p.evaluate(() => window.__copied),
+    "Mail: buyer@example.com\nPassword: secret",
+  );
+  await p
+    .getByLabel("ค้นหาอีเมล / เลขคำสั่งซื้อ / สินค้า", { exact: true })
+    .fill("buyer@example.com");
+  await p.getByRole("button", { name: "ค้นหาคำสั่งซื้อ", exact: true }).click();
+  await p
+    .getByRole("button", { name: "ลูกค้าและเติมเงิน", exact: true })
+    .click();
+  await p
+    .getByLabel("อีเมลบัญชีลูกค้า", { exact: true })
+    .fill("buyer@example.com");
+  await p.getByRole("button", { name: "ค้นหาลูกค้า", exact: true }).click();
+  await p.getByText("ยอดเงินปัจจุบัน ฿100", { exact: true }).waitFor();
+  await p
+    .getByLabel("จำนวนเงินที่แอดมินเติม (บาท)", { exact: true })
+    .fill("50");
+  await p
+    .getByLabel("เลขอ้างอิงธุรกรรมธนาคาร", { exact: true })
+    .fill("BANKREF123");
+  await p
+    .getByLabel("เหตุผล / หมายเหตุ", { exact: true })
+    .fill("ลูกค้าอัปสลิปไม่ได้");
+  await p
+    .getByRole("button", { name: "เติมเงินให้ลูกค้า", exact: true })
+    .click();
+  await p.getByText("ยอดเงินปัจจุบัน ฿150", { exact: true }).waitFor();
+  assert.equal(creditCalls, 1);
   await p.getByRole("button", { name: "ข้อความหน้าร้าน", exact: true }).click();
   await p.getByLabel("หัวข้อหน้าร้าน", { exact: true }).fill("ร้านใหม่ของเรา");
   await p.getByLabel("ช่องทางติดต่อ", { exact: true }).fill("LINE @test");
