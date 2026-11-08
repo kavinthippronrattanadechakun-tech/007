@@ -15,6 +15,7 @@ export const defaultSettings = {
   bank_name: "",
   bank_account_name: "",
   bank_account_number: "",
+  bank_topup_note: "",
   brand_name: "KingkeawLnwza",
   hero_title: "พรีเมียมในแบบที่คุณเลือก",
   hero_description:

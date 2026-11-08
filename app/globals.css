@@ -742,3 +742,8 @@ footer p {
   margin: 0 auto 30px;
   max-width: 480px;
 }
+
+.topup-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
