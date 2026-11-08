@@ -8,7 +8,7 @@ import {
 import { supabaseUrl, authErrorMessage } from "../lib/supabase-config";
 import AdminStore from "./components/AdminStore";
 import Catalog from "./components/Catalog";
-import CopyDelivery from "./components/CopyDelivery";
+import OrderDetails from "./components/OrderDetails";
 import {
   defaultSettings,
   type StoreSettings,
@@ -32,6 +32,8 @@ type Order = {
   status: string;
   delivery: string | null;
   created_at: string;
+  duration_days: number | null;
+  expires_at: string | null;
 };
 type Pending = {
   id: string;
@@ -121,7 +123,9 @@ export default function Home() {
           .order("created_at", { ascending: false }),
         s
           .from("orders")
-          .select("id,product_id,price,status,delivery,created_at")
+          .select(
+            "id,product_id,price,status,delivery,created_at,duration_days,expires_at",
+          )
           .order("created_at", { ascending: false }),
         s.from("profiles").select("balance,is_admin").eq("id", u.id).single(),
       ]);
@@ -511,7 +515,7 @@ export default function Home() {
                   ฿{o.price} ·{" "}
                   {o.status === "delivered" ? "ส่งสินค้าแล้ว" : "รอดำเนินการ"}
                 </span>
-                {o.delivery && <CopyDelivery text={o.delivery} />}
+                <OrderDetails order={o} />
               </div>
             ))}
           </section>

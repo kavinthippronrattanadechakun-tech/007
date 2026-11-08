@@ -170,6 +170,12 @@ export default function Catalog({
                   ? "ส่งข้อมูลสินค้าอัตโนมัติหลังซื้อสำเร็จ"
                   : "ร้านดำเนินการส่งสินค้าให้หลังซื้อสำเร็จ"}
               </p>
+              {product.duration_days && (
+                <p>
+                  ระยะเวลา {product.duration_days} วัน (
+                  {product.duration_days * 24} ชั่วโมง) นับจากเวลาที่ซื้อ
+                </p>
+              )}
               <strong className="detail-price">฿{product.price}</strong>
               {user && product.requires_customer_email && (
                 <label className="email-label">

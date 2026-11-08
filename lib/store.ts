@@ -8,6 +8,7 @@ export type Product = {
   image_url: string;
   category_id: string | null;
   requires_customer_email: boolean;
+  duration_days: number | null;
 };
 export const defaultSettings = {
   bank_name: "",

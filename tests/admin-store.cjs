@@ -92,6 +92,19 @@ const defaults = {
           "base64",
         ),
       });
+    else if (path.includes("/orders"))
+      data = [
+        {
+          id: "customer-order",
+          product_id: "test",
+          price: 25,
+          status: "delivered",
+          delivery: "Mail: buyer@example.com\nPassword: secret",
+          created_at: "2026-11-08T13:00:00Z",
+          duration_days: 7,
+          expires_at: "2026-11-15T13:00:00Z",
+        },
+      ];
     else if (path.includes("/profiles"))
       data = { balance: 100, is_admin: true };
     else if (path.includes("/store_settings")) {
@@ -225,6 +238,8 @@ const defaults = {
             status: "delivered",
             created_at: new Date().toISOString(),
             delivery: "Mail: buyer@example.com\nPassword: secret",
+            duration_days: 7,
+            expires_at: "2026-11-15T13:00:00Z",
           },
         ],
         hasMore: false,
@@ -260,6 +275,7 @@ const defaults = {
     .click();
   await p.getByLabel("ชื่อสินค้า", { exact: true }).fill("สินค้าแก้ไข");
   await p.getByLabel("ราคา (บาท)", { exact: true }).fill("25");
+  await p.getByRole("button", { name: "7 วัน", exact: true }).click();
   await p.getByLabel("เปิดขายสินค้า", { exact: true }).check();
   await p
     .getByLabel("ให้ลูกค้ากรอกอีเมลตอนซื้อสินค้านี้", { exact: true })
@@ -281,6 +297,7 @@ const defaults = {
     .filter({ hasText: "บันทึกเรียบร้อยแล้ว" })
     .waitFor();
   assert.equal(products[0].price, 25);
+  assert.equal(products[0].duration_days, 7);
   assert(uploaded);
   assert(
     products[0].image_url.includes("/storage/v1/object/public/product-images/"),
@@ -383,10 +400,11 @@ const defaults = {
     .getByRole("button", { name: "คัดลอกข้อมูลทั้งหมด", exact: true })
     .click();
   await p.getByText("คัดลอกแล้ว", { exact: true }).waitFor();
-  assert.equal(
+  assert.match(
     await p.evaluate(() => window.__copied),
-    "Mail: buyer@example.com\nPassword: secret",
+    /Mail: buyer@example.com\nPassword: secret/,
   );
+  assert.match(await p.evaluate(() => window.__copied), /วันหมดอายุ:/);
   await p
     .getByLabel("ค้นหาอีเมล / เลขคำสั่งซื้อ / สินค้า", { exact: true })
     .fill("buyer@example.com");
@@ -548,6 +566,21 @@ const defaults = {
       .getByLabel("อีเมลลูกค้าสำหรับรายการที่ต้องใช้เมล", { exact: true })
       .count(),
     0,
+  );
+  await p.getByRole("button", { name: "คำสั่งซื้อ", exact: true }).click();
+  await p
+    .getByText(
+      "วันหมดอายุ: 15 พฤศจิกายน พ.ศ. 2569 เวลา 20:00:00 น. (เวลาไทย)",
+      { exact: false },
+    )
+    .waitFor();
+  await p
+    .getByRole("button", { name: "คัดลอกข้อมูลทั้งหมด", exact: true })
+    .click();
+  assert.match(await p.evaluate(() => window.__copied), /15 พฤศจิกายน/);
+  assert.match(
+    await p.evaluate(() => window.__copied),
+    /7 วัน \(168 ชั่วโมง\)/,
   );
   console.log(
     "PASS: category cards, package drilldown, detail refresh, aggregate stock display, editable category metadata;  SlipOK 99-limit UI and manual fallback; category add/rename/product assignment/storefront filtering; multi-email quantities and delivery add/edit/delete; edit product + price + uploaded image; add/edit/delete stock; save storefront text and render immediately; validate and save bank account and show on topup; mobile width; no browser exceptions",
