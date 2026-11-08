@@ -23,6 +23,7 @@ const emptyProduct = (): Product => ({
   image_url: "",
   category_id: null,
   requires_customer_email: false,
+  duration_days: null,
 });
 const labels: Record<keyof StoreSettings, string> = {
   bank_name: "ชื่อธนาคาร",
@@ -168,6 +169,13 @@ export default function AdminStore({
         product.price > 2147483647
       )
         throw Error("กรุณาระบุชื่อและราคาเป็นจำนวนเต็มตั้งแต่ 1 บาท");
+      if (
+        product.duration_days != null &&
+        (!Number.isInteger(product.duration_days) ||
+          product.duration_days < 1 ||
+          product.duration_days > 3650)
+      )
+        throw Error("ระยะเวลาต้องเป็นจำนวนเต็ม 1–3650 วัน");
       let imageUrl = product.image_url.trim();
       let uploaded: string | null = null;
       if (imageUrl && !/^https:\/\//i.test(imageUrl))
@@ -197,6 +205,7 @@ export default function AdminStore({
         image_url: imageUrl,
         category_id: product.category_id || null,
         requires_customer_email: !!product.requires_customer_email,
+        duration_days: product.duration_days ?? null,
       };
       const result = editing
         ? await db
@@ -472,6 +481,50 @@ export default function AdminStore({
                     }
                   />
                 </label>
+                <label>
+                  ระยะเวลาใช้งาน (วัน)
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    value={product.duration_days ?? ""}
+                    onChange={(e) =>
+                      setProduct({
+                        ...product,
+                        duration_days:
+                          e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <div className="actions">
+                  {[1, 7, 30].map((d) => (
+                    <button
+                      type="button"
+                      className="outline"
+                      key={d}
+                      onClick={() =>
+                        setProduct({ ...product, duration_days: d })
+                      }
+                    >
+                      {d} วัน
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="outline"
+                    onClick={() =>
+                      setProduct({ ...product, duration_days: null })
+                    }
+                  >
+                    ไม่กำหนดระยะเวลา
+                  </button>
+                </div>
+                <p>
+                  1 วัน = 24 ชั่วโมง เริ่มนับจากเวลาที่ซื้อ
+                  การแก้ระยะเวลามีผลกับคำสั่งซื้อใหม่เท่านั้น
+                </p>
                 <label>
                   หมวดสินค้า
                   <select

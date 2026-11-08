@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import CopyDelivery from "./CopyDelivery";
+import OrderDetails from "./OrderDetails";
+import { formatOrderDate } from "../../lib/order-expiry";
 type Row = {
   id: string;
   user_id: string;
@@ -12,6 +13,8 @@ type Row = {
   status: string;
   created_at: string;
   delivery: string | null;
+  duration_days: number | null;
+  expires_at: string | null;
 };
 export default function AdminOrders({ db }: { db: SupabaseClient }) {
   const [query, setQuery] = useState(""),
@@ -108,12 +111,16 @@ export default function AdminOrders({ db }: { db: SupabaseClient }) {
                 timeZone: "Asia/Bangkok",
               })}
             </small>
-            {o.delivery && (
+            <span>
+              วันหมดอายุ:{" "}
+              {o.expires_at ? formatOrderDate(o.expires_at) : "ไม่กำหนด"}
+            </span>
+            {
               <details>
                 <summary>ดูข้อมูลที่ส่งให้ลูกค้า</summary>
-                <CopyDelivery text={o.delivery} />
+                <OrderDetails order={o} />
               </details>
-            )}
+            }
           </article>
         ))
       )}
