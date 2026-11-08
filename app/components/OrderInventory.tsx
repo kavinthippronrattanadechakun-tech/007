@@ -10,6 +10,7 @@ type Source = {
   active_others: number;
   action: string | null;
   can_restock: boolean;
+  requires_early_confirmation?: boolean;
   secret?: string;
 };
 export default function OrderInventory({
@@ -66,7 +67,9 @@ export default function OrderInventory({
     if (
       !confirm(
         action === "restock"
-          ? "ยืนยันคืนสินค้า 1 สิทธิ์เข้าสต็อกสำหรับขายครั้งถัดไป?"
+          ? source?.requires_early_confirmation
+            ? "รายการนี้ยังไม่หมดอายุหรือไม่ได้กำหนดวันหมดอายุ ยืนยันจบการใช้งานเดิมและคืน 1 สิทธิ์เข้าสต็อกก่อนกำหนด?"
+            : "ยืนยันคืนสินค้า 1 สิทธิ์เข้าสต็อกสำหรับขายครั้งถัดไป?"
           : "ยืนยันเอาสินค้าจากคำสั่งซื้อนี้ออก โดยไม่นำสิทธิ์นี้กลับเข้าสต็อก?",
       )
     )
@@ -77,6 +80,8 @@ export default function OrderInventory({
       const data = await api("POST", {
         orderId,
         action,
+        allowEarly:
+          action === "restock" && !!source?.requires_early_confirmation,
         password: action === "restock" && editPassword ? password : "",
         secret: action === "restock" && source?.kind === "code" ? secret : "",
       });
@@ -142,7 +147,13 @@ export default function OrderInventory({
                 </select>
               </label>
               {!source.can_restock && (
-                <p>คืนสต็อกได้เมื่อคำสั่งซื้อหมดอายุและมีสต็อกต้นทาง</p>
+                <p>รายการนี้ไม่มีสต็อกต้นทางให้คืน กรุณาตรวจสอบข้อมูล</p>
+              )}
+              {action === "restock" && source.requires_early_confirmation && (
+                <p className="early-restock-notice">
+                  คืนก่อนหมดอายุ: ยืนยันว่าพร้อมนำสิทธิ์นี้กลับขายแล้ว
+                  ประวัติวันหมดอายุเดิมจะยังคงอยู่
+                </p>
               )}
               {action === "restock" && source.kind === "account" && (
                 <>

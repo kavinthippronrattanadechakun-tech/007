@@ -186,10 +186,12 @@ test("inventory actions require admin and validate input before invoking privile
     orderId: target,
     action: "restock",
     password: "updated",
+    allowEarly: true,
     actor: "spoofed",
   });
   assert.equal(r.status, 200);
   assert.equal(r.calls[0].payload.p_actor, uid);
   assert.equal(r.calls[0].payload.p_password, "updated");
+  assert.equal(r.calls[0].payload.p_allow_early, true);
   assert.equal((await scenario("ok", "inventory")).status, 200);
 });
