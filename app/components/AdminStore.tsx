@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import EmailStock from "./EmailStock";
+import AdminOrders from "./AdminOrders";
+import AdminCustomers from "./AdminCustomers";
 import AdminCategories from "./AdminCategories";
 import SlipOKQuota from "./SlipOKQuota";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -315,6 +317,8 @@ export default function AdminStore({
         {[
           ["products", "สินค้าและราคา"],
           ["stock", "สต็อกสินค้า"],
+          ["orders", "คำสั่งซื้อลูกค้า"],
+          ["customers", "ลูกค้าและเติมเงิน"],
           ["categories", "หมวดหมู่สินค้า"],
           ["settings", "ข้อความหน้าร้าน"],
           ["bank", "บัญชีธนาคาร"],
@@ -341,6 +345,10 @@ export default function AdminStore({
         <p>กำลังโหลดหลังบ้าน…</p>
       ) : (
         <fieldset disabled={busy} className="admin-fieldset">
+          {section === "orders" && <AdminOrders db={db} />}
+          {section === "customers" && (
+            <AdminCustomers db={db} onChanged={onChanged} />
+          )}
           {section === "categories" && (
             <AdminCategories
               db={db}
@@ -584,7 +592,12 @@ export default function AdminStore({
                     ใช้โค้ดจากสต็อกอัตโนมัติเมื่อสินค้าตั้งวิธีส่งเป็น
                     “ส่งโค้ด/อีเมลจากสต็อกอัตโนมัติ”
                   </p>
-                  <EmailStock key={selected} db={db} productId={selected} />
+                  <EmailStock
+                    key={selected}
+                    db={db}
+                    productId={selected}
+                    onChanged={onChanged}
+                  />
                   <h3>สต็อกโค้ดแบบเดิม (1 โค้ดต่อการซื้อ)</h3>
                   <form onSubmit={addStock}>
                     <label>
