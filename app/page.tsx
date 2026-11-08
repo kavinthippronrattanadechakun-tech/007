@@ -45,7 +45,9 @@ function db() {
       key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) return null;
     try {
-      client = createClient(supabaseUrl(url), key.trim());
+      client = createClient(supabaseUrl(url), key.trim(), {
+        auth: { detectSessionInUrl: false },
+      });
     } catch {
       return null;
     }
@@ -69,6 +71,7 @@ export default function Home() {
     [busy, setBusy] = useState(false),
     [bank, setBank] = useState({ bank: "", name: "", number: "" }),
     [tab, setTab] = useState("shop");
+  const [topupMode, setTopupMode] = useState("manual");
   const [categories, setCategories] = useState<Category[]>([]),
     [category, setCategory] = useState("all");
   async function loadCategories() {
@@ -124,8 +127,29 @@ export default function Home() {
     setAdmin(profile?.is_admin || false);
   }
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search),
+      hash = new URLSearchParams(window.location.hash.slice(1));
+    if (
+      query.has("code") ||
+      query.has("token_hash") ||
+      query.has("error_code") ||
+      hash.has("access_token") ||
+      hash.has("error_code") ||
+      hash.has("error")
+    ) {
+      window.location.replace(
+        "/auth/confirm" + window.location.search + window.location.hash,
+      );
+      return;
+    }
     loadSettings();
     loadCategories();
+    fetch("/api/topup")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setTopupMode(data.mode);
+      })
+      .catch(() => {});
     const s = db();
     if (!s) return;
     s.auth.getUser().then(({ data }) => {
@@ -155,7 +179,12 @@ export default function Home() {
       const credentials = { email: email.trim(), password };
       const result =
         mode === "signup"
-          ? await s.auth.signUp(credentials)
+          ? await s.auth.signUp({
+              ...credentials,
+              options: {
+                emailRedirectTo: window.location.origin + "/auth/confirm",
+              },
+            })
           : await s.auth.signInWithPassword(credentials);
       setMsg(
         result.error
@@ -461,8 +490,9 @@ export default function Home() {
               <Upload size={22} /> เติมเงินผ่านธนาคาร
             </h2>
             <p>
-              โอนเงินตามข้อมูลบัญชีที่ร้านประกาศ แล้วอัปโหลดสลิป
-              รอผู้ดูแลตรวจสอบธุรกรรมจริงก่อนเพิ่มยอดเงิน
+              {topupMode === "automatic"
+                ? "โอนเข้าบัญชีร้าน แล้วอัปโหลดสลิปใหม่ภายใน 24 ชั่วโมง ระบบตรวจยอด ผู้รับ และรายการซ้ำก่อนเพิ่มเงินอัตโนมัติ"
+                : "โอนเงินตามข้อมูลบัญชีที่ร้านประกาศ แล้วอัปโหลดสลิป รอผู้ดูแลตรวจสอบธุรกรรมจริงก่อนเพิ่มยอดเงิน"}
             </p>
             <div className="bank">
               {bank.bank && bank.name && bank.number
@@ -482,7 +512,7 @@ export default function Home() {
                 />
               </label>
               <label>
-                รูปสลิป (JPG, PNG, WEBP ไม่เกิน 5 MB)
+                รูปสลิป (JPG, PNG, WEBP ไม่เกิน 4 MB)
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -490,7 +520,11 @@ export default function Home() {
                   onChange={(e) => setSlip(e.target.files?.[0] || null)}
                 />
               </label>
-              <button disabled={busy || !ready}>ส่งสลิปเพื่อรอตรวจสอบ</button>
+              <button disabled={busy || !ready}>
+                {topupMode === "automatic"
+                  ? "ตรวจสลิปและเติมเงิน"
+                  : "ส่งสลิปเพื่อรอตรวจสอบ"}
+              </button>
             </form>
             <h3>ประวัติเติมเงิน</h3>
             {topups.map((t) => (

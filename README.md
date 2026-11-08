@@ -56,3 +56,16 @@
 
 ## หมวดหมู่สินค้า
 มีหมวด Netflix, ChatGPT และ Gemini พร้อมจัดสินค้าที่มีชื่อแอปเหล่านี้เข้าหมวดให้แล้ว หลังบ้าน → หมวดหมู่สินค้า ใช้เพิ่มหมวดใหม่ เปลี่ยนชื่อ และจัดลำดับ จากนั้นเลือกหมวดในฟอร์มสินค้า หน้าร้านกรองสินค้าตามหมวดได้ ทั้งผู้เยี่ยมชมและสมาชิก
+
+## Email confirmation
+Supabase Auth → URL Configuration: Site URL `https://007p.vercel.app`; Redirect URLs include `https://007p.vercel.app/auth/confirm`. Signup now sets emailRedirectTo explicitly. The callback verifies the session/user before displaying success, handles expired/used links honestly, removes tokens from the address bar, and stops waiting after 15 seconds.
+
+## ตรวจสลิปอัตโนมัติ (EasySlip API v2)
+สมัครผู้ให้บริการและเลือกค่าแพ็กเกจด้วยตนเอง ลงทะเบียนบัญชีรับเงินใน EasySlip ให้ตรงกับหลังบ้านร้านทั้งธนาคาร เลขบัญชี และชื่อบัญชี เพิ่ม `EASYSLIP_API_KEY` เป็น **Secret ฝั่งเซิร์ฟเวอร์** ใน Vercel แล้ว deploy ใหม่ ห้ามใช้ NEXT_PUBLIC กับคีย์นี้ เมื่อมีคีย์ระบบเปลี่ยนเป็นอัตโนมัติ ตั้ง `SLIP_AUTO_VERIFY_ENABLED=false` เพื่อคงการตรวจด้วยผู้ดูแล
+ระบบส่งไฟล์ให้ https://api.easyslip.com/v2/verify/bank พร้อม matchAccount, matchAmount และ checkDuplicate ต้องได้ผลชัดเจนว่าผู้รับ ยอด ธนาคาร ชื่อบัญชีตรง และไม่ซ้ำก่อนเพิ่มยอด รับสลิปไม่เกิน 4 MB โอนภายใน 24 ชั่วโมงและไม่ก่อนสร้างบัญชีเกิน 5 นาที ตรวจทั้ง hash รูปและเลขอ้างอิงธุรกรรมที่ unique ในฐานข้อมูล เก็บสลิปใน private storage จำกัด 5 รายการต่อผู้ใช้ต่อนาที และเพิ่มยอดพร้อม ledger ใน transaction เดียว
+บริการตรวจไม่ได้/โควต้าหมด/ผลไม่ครบให้คง pending โดยไม่เพิ่มเงิน รายการที่ตรวจไม่ผ่านให้ rejected ถ้ามีการตรวจแล้วแต่ระบบเพิ่มยอดล้มเหลว ให้ผู้ดูแลตรวจธุรกรรมจริงก่อนจัดการต่อ ไม่อนุมัติซ้ำจากภาพเพียงอย่างเดียว การตรวจยืนยันข้อมูลธุรกรรม ไม่ใช่การรับประกันความแท้ของทุกพิกเซลหรือพิสูจน์ว่าผู้อัปโหลดเป็นผู้โอน
+เอกสารผู้ให้บริการ: https://document.easyslip.com/en/v2/verify/bank/
+
+## SlipVerify ทางเลือก (xNearbyTeam)
+รีโป https://github.com/xNearbyTeam/Slip-Verify เป็น SDK/ตัวอย่างที่เรียก API ภายนอก ไม่ได้เปิดเผย server ตรวจธุรกรรม ขอ Token ผ่าน Discord ตาม README แล้วเพิ่ม `SLIPVERIFY_API_TOKEN` เป็น Vercel Secret ฝั่ง Production และ deploy ใหม่ หากมีทั้งสองคีย์ SlipVerify จะถูกเลือกก่อน EasySlip
+ตัวเชื่อมส่งชื่อบัญชี รหัสธนาคาร และเลขบัญชีเต็มให้ `/slipVerify/v2` และตรวจยอด เลขอ้างอิง วันเวลาที่มี timezone และข้อมูลผู้รับซ้ำฝั่งร้าน ไม่เพิ่มยอดอัตโนมัติจากเพียงยอด OCR หรือเลขบัญชีท้ายบางหลัก หากผลตอบกลับมีบัญชีถูกปิดบัง ชื่อย่อที่ไม่ตรง หรือข้อมูลไม่ครบ จะคง pending เพื่อไม่เพิ่มเงินผิดคน การเชื่อมต่อจริงและรูปแบบ response ต้องทดสอบด้วย Token ของผู้ให้บริการก่อนเปิดใช้เงินจริง README ของผู้ให้บริการระบุว่าแจก Token ฟรี แต่ต้องยืนยันเงื่อนไขกับเจ้าของบริการเอง
