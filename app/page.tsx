@@ -254,12 +254,19 @@ export default function Home() {
     }
   }
   async function buy(p: Product) {
+    if (
+      p.requires_customer_email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())
+    ) {
+      setMsg("กรุณากรอกอีเมลสำหรับสินค้านี้ให้ถูกต้อง");
+      return;
+    }
     if (!confirm(`ยืนยันซื้อ ${p.title} ราคา ฿${p.price}?`)) return;
     setBusy(true);
     try {
       const r = await api("/api/orders", {
         productId: p.id,
-        email: customerEmail,
+        email: p.requires_customer_email ? customerEmail.trim() : null,
       });
       setMsg(
         r.data.status === "delivered"
@@ -384,6 +391,9 @@ export default function Home() {
                 สมัครสมาชิก
               </button>
             </div>
+            <p>
+              <a href="/auth/forgot">ลืมรหัสผ่าน / รีเซ็ตรหัสผ่าน</a>
+            </p>
           </section>
         )}
         {user && (

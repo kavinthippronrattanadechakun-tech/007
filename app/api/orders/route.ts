@@ -26,7 +26,9 @@ export async function POST(req: Request) {
       return fail(
         error.message === "Out of stock"
           ? "สินค้าหมดชั่วคราว กรุณาลองใหม่ภายหลัง"
-          : error.message,
+          : error.message === "Customer email required"
+            ? "กรุณากรอกอีเมลสำหรับสินค้านี้ให้ถูกต้อง"
+            : error.message,
       );
     return Response.json({ data });
   } catch {

@@ -63,12 +63,7 @@ export default function AdminCustomers({
       setMessage("จำนวนเงินต้องเป็นจำนวนเต็ม 1–100000 บาท");
       return;
     }
-    if (
-      !confirm(
-        `ยืนยันเติม ฿${n} ให้ ${customer.email}\nเลขอ้างอิง ${reference.trim()}?`,
-      )
-    )
-      return;
+    if (!confirm(`ยืนยันเติม ฿${n} ให้ ${customer.email}?`)) return;
     setBusy(true);
     setMessage("");
     try {
@@ -93,6 +88,7 @@ export default function AdminCustomers({
       setAmount("");
       setReference("");
       setNote("");
+      request.current = { key: "", id: "" };
       await lookup();
       await onChanged();
     } catch (e) {
@@ -104,10 +100,7 @@ export default function AdminCustomers({
   return (
     <section>
       <h3>ลูกค้าและเติมเงิน</h3>
-      <p>
-        ตรวจรายการโอนจริงก่อนเติมเงิน
-        ใช้เลขอ้างอิงจากธนาคารเพื่อกันเติมซ้ำกับสลิปที่ลูกค้าส่งภายหลัง
-      </p>
+      <p>ค้นหาอีเมลลูกค้า เลือกจำนวนเงิน แล้วกดเติมเงินได้เลย</p>
       {message && (
         <div className="notice" role="status">
           {message}
@@ -150,26 +143,43 @@ export default function AdminCustomers({
                   onChange={(e) => setAmount(e.target.value)}
                 />
               </label>
-              <label>
-                เลขอ้างอิงธุรกรรมธนาคาร
-                <input
-                  required
-                  minLength={6}
-                  maxLength={200}
-                  pattern="[A-Za-z0-9_-]+"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                />
-              </label>
-              <label>
-                เหตุผล / หมายเหตุ
-                <textarea
-                  required
-                  maxLength={1000}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-              </label>
+              <div className="actions">
+                {[50, 100, 200, 500, 1000].map((n) => (
+                  <button
+                    type="button"
+                    className="outline"
+                    key={n}
+                    onClick={() => setAmount(String(n))}
+                  >
+                    ฿{n}
+                  </button>
+                ))}
+              </div>
+              <details>
+                <summary>เลขอ้างอิง / หมายเหตุ (ไม่บังคับ)</summary>
+                <p>
+                  หากเติมแทนรายการโอน
+                  ให้ใส่เลขอ้างอิงธนาคารเพื่อกันใช้สลิปเดิมเติมซ้ำ
+                </p>
+                <label>
+                  เลขอ้างอิงธุรกรรมธนาคาร
+                  <input
+                    minLength={6}
+                    maxLength={200}
+                    pattern="[A-Za-z0-9_-]+"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                  />
+                </label>
+                <label>
+                  เหตุผล / หมายเหตุ
+                  <textarea
+                    maxLength={1000}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </label>
+              </details>
               <button>เติมเงินให้ลูกค้า</button>
             </form>
             <h4>ประวัติเติมโดยแอดมินล่าสุด</h4>
@@ -182,7 +192,7 @@ export default function AdminCustomers({
                     timeZone: "Asia/Bangkok",
                   })}
                 </small>
-                <span>เลขอ้างอิง {h.reference}</span>
+                {h.reference && <span>เลขอ้างอิง {h.reference}</span>}
                 <p>{h.note}</p>
               </div>
             ))}

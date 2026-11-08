@@ -117,8 +117,8 @@ test("wallet actor comes from validated session; malformed amounts/references ne
     { amount: 0 },
     { amount: 1.5 },
     { amount: 100001 },
-    { reference: "" },
-    { note: "" },
+    { reference: "bad" },
+    { note: 123 },
     { requestId: "bad" },
   ]) {
     const r = await scenario("ok", "customers", "POST", { ...payload, ...bad });
@@ -136,4 +136,15 @@ test("duplicate bank reference is a conflict and orders paginate without exposin
   assert.equal(r.body.hasMore, true);
   assert.equal(r.calls[0].payload.p_offset, 100);
   assert.equal(r.calls[0].payload.p_query, "buyer@example.com");
+});
+
+test("admin can credit using just customer, amount and request ID", async () => {
+  const r = await scenario("ok", "customers", "POST", {
+    requestId: payload.requestId,
+    userId: target,
+    amount: 50,
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.calls[0].payload.p_reference, "");
+  assert.equal(r.calls[0].payload.p_note, "");
 });

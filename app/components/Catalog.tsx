@@ -171,11 +171,12 @@ export default function Catalog({
                   : "ร้านดำเนินการส่งสินค้าให้หลังซื้อสำเร็จ"}
               </p>
               <strong className="detail-price">฿{product.price}</strong>
-              {user && (
+              {user && product.requires_customer_email && (
                 <label className="email-label">
                   อีเมลลูกค้าสำหรับรายการที่ต้องใช้เมล
                   <input
                     type="email"
+                    required
                     value={email}
                     onChange={(e) => onEmail(e.target.value)}
                     placeholder="customer@gmail.com"
