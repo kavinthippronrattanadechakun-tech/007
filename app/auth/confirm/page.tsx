@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import ConfirmEmail from "./ConfirmEmail";
 export const metadata: Metadata = {
-  title: "ยืนยันอีเมล | PremiumHub",
+  title: "ยืนยันอีเมล | KingkeawLnwza",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
 };
