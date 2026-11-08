@@ -11,10 +11,10 @@
 ## ติดตั้งบน Vercel ผ่าน GitHub
 1. อัปโหลดไฟล์ทั้งหมด **ภายในโฟลเดอร์นี้** ไป repository (ต้องมี `app/`, `lib/`, `supabase/`, `package.json` อยู่ชั้นบนสุด)
 2. สร้าง Supabase project: https://supabase.com/dashboard
-3. เปิด SQL Editor วางเนื้อหา `supabase/schema.sql` แล้ว Run (ทำเพียงครั้งเดียวบนโปรเจกต์ใหม่)
+3. เปิด SQL Editor วางเนื้อหา `supabase/schema_secure.sql` แล้ว Run (ทำเพียงครั้งเดียวบนโปรเจกต์ใหม่)
 4. ใน Supabase Authentication ตั้งค่า Email sign-in และ Site URL ให้ตรงเว็บ Vercel
 5. ใน Vercel > Project > Settings > Environment Variables เพิ่มค่าจาก `.env.example` (อย่าอัปโหลด `.env` ที่มี secret ขึ้น GitHub)
-6. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` จาก Supabase API settings; `SUPABASE_SERVICE_ROLE_KEY` เป็น **secret server-only** ห้ามตั้งชื่อขึ้นต้น NEXT_PUBLIC
+6. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` จาก Supabase API settings (URL ต้องเป็น https://PROJECT.supabase.co โดยไม่มี /rest/v1/; ใช้ Publishable key หรือ legacy anon key เท่านั้น); `SUPABASE_SERVICE_ROLE_KEY` เป็น **secret server-only** ห้ามตั้งชื่อขึ้นต้น NEXT_PUBLIC
 7. ตั้ง `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER` เป็นข้อมูลบัญชีรับโอนที่ถูกต้อง
 8. Deploy ใหม่ แล้วสมัครสมาชิกเพื่อทดสอบ
 9. กำหนดแอดมินด้วย SQL Editor **เฉพาะ user id ที่ตรวจสอบแล้ว**: `update public.profiles set is_admin=true where id='UUID-ของเจ้าของร้าน';` อย่าให้ผู้ใช้ตั้งสิทธิ์แอดมินเอง
