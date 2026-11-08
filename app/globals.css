@@ -443,3 +443,19 @@ footer p {
     font-size: 19px;
   }
 }
+
+.email-stock {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 18px;
+  margin: 24px 0;
+}
+.email-stock strong {
+  overflow-wrap: anywhere;
+}
+.email-stock fieldset {
+  min-width: 0;
+}
+.email-stock summary {
+  cursor: pointer;
+}
