@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import OrderDetails from "./OrderDetails";
+import OrderInventory from "./OrderInventory";
 import { formatOrderDate } from "../../lib/order-expiry";
 type Row = {
   id: string;
@@ -15,8 +16,15 @@ type Row = {
   delivery: string | null;
   duration_days: number | null;
   expires_at: string | null;
+  inventory_action: string | null;
 };
-export default function AdminOrders({ db }: { db: SupabaseClient }) {
+export default function AdminOrders({
+  db,
+  onChanged,
+}: {
+  db: SupabaseClient;
+  onChanged?: () => Promise<void>;
+}) {
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState(""),
     [filter, setFilter] = useState({ q: "", status: "" }),
@@ -75,6 +83,7 @@ export default function AdminOrders({ db }: { db: SupabaseClient }) {
             <option value="">ทั้งหมด</option>
             <option value="processing">รอดำเนินการ</option>
             <option value="delivered">ส่งสินค้าแล้ว</option>
+            <option value="expired">หมดอายุและยังไม่ได้จัดการสต็อก</option>
           </select>
         </label>
         <div className="actions">
@@ -115,6 +124,23 @@ export default function AdminOrders({ db }: { db: SupabaseClient }) {
               วันหมดอายุ:{" "}
               {o.expires_at ? formatOrderDate(o.expires_at) : "ไม่กำหนด"}
             </span>
+            {o.status === "delivered" &&
+              (o.inventory_action ? (
+                <span>
+                  {o.inventory_action === "restock"
+                    ? "คืนสต็อกแล้ว"
+                    : "นำสินค้าออกแล้ว"}
+                </span>
+              ) : (
+                <OrderInventory
+                  db={db}
+                  orderId={o.id}
+                  onChanged={async () => {
+                    setRefresh((n) => n + 1);
+                    await onChanged?.();
+                  }}
+                />
+              ))}
             {
               <details>
                 <summary>ดูข้อมูลที่ส่งให้ลูกค้า</summary>

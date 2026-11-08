@@ -356,7 +356,9 @@ export default function AdminStore({
         <p>กำลังโหลดหลังบ้าน…</p>
       ) : (
         <fieldset disabled={busy} className="admin-fieldset">
-          {section === "orders" && <AdminOrders db={db} />}
+          {section === "orders" && (
+            <AdminOrders db={db} onChanged={onChanged} />
+          )}
           {section === "customers" && (
             <AdminCustomers db={db} onChanged={onChanged} />
           )}

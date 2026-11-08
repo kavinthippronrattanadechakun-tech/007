@@ -225,6 +225,30 @@ const defaults = {
       },
     }),
   );
+  let inventoryCalls = 0;
+  await p.route("**/api/admin/orders/inventory**", (r) => {
+    if (r.request().method() === "POST") {
+      const body = r.request().postDataJSON();
+      assert.equal(body.orderId, "order-test");
+      assert.equal(body.action, "restock");
+      assert.equal(body.password, "next-password");
+      inventoryCalls++;
+      return r.fulfill({ json: { data: { ok: true, action: "restock" } } });
+    }
+    return r.fulfill({
+      json: {
+        data: {
+          kind: "account",
+          email: "buyer@example.com",
+          remaining: 0,
+          has_screen: false,
+          active_others: 0,
+          can_restock: true,
+          action: null,
+        },
+      },
+    });
+  });
   await p.route("**/api/admin/orders?**", (r) =>
     r.fulfill({
       json: {
@@ -405,6 +429,21 @@ const defaults = {
     /Mail: buyer@example.com\nPassword: secret/,
   );
   assert.match(await p.evaluate(() => window.__copied), /วันหมดอายุ:/);
+  await p
+    .getByRole("button", { name: "รีสต็อก / นำสินค้าออก", exact: true })
+    .click();
+  await p.getByLabel("การจัดการสต็อก", { exact: true }).selectOption("restock");
+  await p.getByLabel("แก้ไขรหัสผ่านก่อนคืนสต็อก", { exact: true }).check();
+  await p
+    .getByLabel("รหัสผ่านสำหรับผู้ซื้อครั้งถัดไป", { exact: true })
+    .fill("next-password");
+  await p
+    .getByRole("button", { name: "ยืนยันจัดการสต็อก", exact: true })
+    .click();
+  await p.waitForFunction(
+    () => !document.body.innerText.includes("ยืนยันจัดการสต็อก"),
+  );
+  assert.equal(inventoryCalls, 1);
   await p
     .getByLabel("ค้นหาอีเมล / เลขคำสั่งซื้อ / สินค้า", { exact: true })
     .fill("buyer@example.com");
