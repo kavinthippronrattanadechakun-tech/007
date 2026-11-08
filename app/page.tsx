@@ -71,7 +71,6 @@ export default function Home() {
     [busy, setBusy] = useState(false),
     [bank, setBank] = useState({ bank: "", name: "", number: "" }),
     [tab, setTab] = useState("shop");
-  const [topupMode, setTopupMode] = useState("manual");
   const [categories, setCategories] = useState<Category[]>([]),
     [category, setCategory] = useState("all");
   async function loadCategories() {
@@ -132,6 +131,7 @@ export default function Home() {
     if (
       query.has("code") ||
       query.has("token_hash") ||
+      query.has("error") ||
       query.has("error_code") ||
       hash.has("access_token") ||
       hash.has("error_code") ||
@@ -144,12 +144,6 @@ export default function Home() {
     }
     loadSettings();
     loadCategories();
-    fetch("/api/topup")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) setTopupMode(data.mode);
-      })
-      .catch(() => {});
     const s = db();
     if (!s) return;
     s.auth.getUser().then(({ data }) => {
@@ -490,9 +484,8 @@ export default function Home() {
               <Upload size={22} /> เติมเงินผ่านธนาคาร
             </h2>
             <p>
-              {topupMode === "automatic"
-                ? "โอนเข้าบัญชีร้าน แล้วอัปโหลดสลิปใหม่ภายใน 24 ชั่วโมง ระบบตรวจยอด ผู้รับ และรายการซ้ำก่อนเพิ่มเงินอัตโนมัติ"
-                : "โอนเงินตามข้อมูลบัญชีที่ร้านประกาศ แล้วอัปโหลดสลิป รอผู้ดูแลตรวจสอบธุรกรรมจริงก่อนเพิ่มยอดเงิน"}
+              โอนเงินตามข้อมูลบัญชีที่ร้านประกาศ แล้วอัปโหลดสลิป
+              รอผู้ดูแลตรวจสอบธุรกรรมจริงก่อนเพิ่มยอดเงิน
             </p>
             <div className="bank">
               {bank.bank && bank.name && bank.number
@@ -512,7 +505,7 @@ export default function Home() {
                 />
               </label>
               <label>
-                รูปสลิป (JPG, PNG, WEBP ไม่เกิน 4 MB)
+                รูปสลิป (JPG, PNG, WEBP ไม่เกิน 5 MB)
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -520,11 +513,7 @@ export default function Home() {
                   onChange={(e) => setSlip(e.target.files?.[0] || null)}
                 />
               </label>
-              <button disabled={busy || !ready}>
-                {topupMode === "automatic"
-                  ? "ตรวจสลิปและเติมเงิน"
-                  : "ส่งสลิปเพื่อรอตรวจสอบ"}
-              </button>
+              <button disabled={busy || !ready}>ส่งสลิปเพื่อรอตรวจสอบ</button>
             </form>
             <h3>ประวัติเติมเงิน</h3>
             {topups.map((t) => (
