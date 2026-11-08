@@ -14,7 +14,8 @@ require.extensions[".ts"] = (m, p) =>
     p,
   );
 const customers = require("../app/api/admin/customers/route.ts"),
-  orders = require("../app/api/admin/orders/route.ts");
+  orders = require("../app/api/admin/orders/route.ts"),
+  inventory = require("../app/api/admin/orders/inventory/route.ts");
 const uid = "11111111-1111-4111-8111-111111111111",
   target = "22222222-2222-4222-8222-222222222222";
 const json = (v, status = 200) =>
@@ -52,6 +53,10 @@ async function scenario(kind, route, method = "GET", body) {
           return json([
             { id: target, email: "buyer@example.com", balance: 100 },
           ]);
+        if (name === "admin_order_inventory")
+          return json({ kind: "account", can_restock: true });
+        if (name === "admin_manage_order_inventory")
+          return json({ ok: true, action: payload.p_action });
         if (name === "admin_order_list")
           return json(
             Array.from({ length: 51 }, (_, i) => ({ id: String(i) })),
@@ -63,9 +68,11 @@ async function scenario(kind, route, method = "GET", body) {
     const req = new Request(
       "https://store.example/api/admin/" +
         route +
-        (route === "orders"
-          ? "?page=2&q=buyer@example.com"
-          : "?email=buyer@example.com"),
+        (route === "inventory"
+          ? "?orderId=" + target
+          : route === "orders"
+            ? "?page=2&q=buyer@example.com"
+            : "?email=buyer@example.com"),
       {
         method,
         headers:
@@ -78,7 +85,12 @@ async function scenario(kind, route, method = "GET", body) {
         ...(body ? { body: JSON.stringify(body) } : {}),
       },
     );
-    const module = route === "orders" ? orders : customers;
+    const module =
+      route === "inventory"
+        ? inventory
+        : route === "orders"
+          ? orders
+          : customers;
     const r = await module[method](req);
     return { status: r.status, body: await r.json(), calls };
   } finally {
@@ -147,4 +159,37 @@ test("admin can credit using just customer, amount and request ID", async () => 
   assert.equal(r.status, 200);
   assert.equal(r.calls[0].payload.p_reference, "");
   assert.equal(r.calls[0].payload.p_note, "");
+});
+
+test("inventory actions require admin and validate input before invoking privileged RPC", async () => {
+  for (const kind of ["unauth", "nonadmin", "invalid-user"])
+    for (const method of ["GET", "POST"]) {
+      const r = await scenario(
+        kind,
+        "inventory",
+        method,
+        method === "POST" ? { orderId: target, action: "restock" } : undefined,
+      );
+      assert.equal(r.status, 403);
+      assert.equal(r.calls.length, 0);
+    }
+  for (const payload of [
+    { orderId: "bad", action: "restock" },
+    { orderId: target, action: "delete" },
+    { orderId: target, action: "restock", password: "bad\npassword" },
+  ]) {
+    const r = await scenario("ok", "inventory", "POST", payload);
+    assert.equal(r.status, 400);
+    assert.equal(r.calls.length, 0);
+  }
+  const r = await scenario("ok", "inventory", "POST", {
+    orderId: target,
+    action: "restock",
+    password: "updated",
+    actor: "spoofed",
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.calls[0].payload.p_actor, uid);
+  assert.equal(r.calls[0].payload.p_password, "updated");
+  assert.equal((await scenario("ok", "inventory")).status, 200);
 });

@@ -9,7 +9,7 @@ export async function GET(req: Request) {
       page = Number(params.get("page") || 0);
     if (
       q.length > 320 ||
-      !["", "processing", "delivered"].includes(status) ||
+      !["", "processing", "delivered", "expired"].includes(status) ||
       !Number.isSafeInteger(page) ||
       page < 0 ||
       page > 2000

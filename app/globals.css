@@ -679,3 +679,19 @@ footer p {
     align-items: flex-start;
   }
 }
+.inventory-control {
+  padding: 16px 0;
+}
+.inventory-control form {
+  background: #f7f7f7;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 18px;
+}
+.inventory-control h4 {
+  margin-top: 0;
+}
+.inventory-control p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
