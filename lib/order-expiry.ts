@@ -19,20 +19,22 @@ export function formatOrderDate(value: string) {
       minute: "2-digit",
       second: "2-digit",
       hour12: false,
-    }).format(date) + " น. (เวลาไทย)"
+    }).format(date) + " น."
   );
 }
-export function orderCopyText(o: OrderTiming) {
+export function orderCopyText(o: OrderTiming, productTitle: string) {
+  const date = o.expires_at ? new Date(o.expires_at) : null;
+  const valid = date && Number.isFinite(date.getTime());
   return [
-    `คำสั่งซื้อ: ${o.id}`,
-    `วันที่ซื้อ: ${formatOrderDate(o.created_at)}`,
-    o.duration_days
-      ? `ระยะเวลา: ${o.duration_days} วัน (${o.duration_days * 24} ชั่วโมง)`
-      : "ระยะเวลา: ไม่กำหนด",
-    o.expires_at
-      ? `วันหมดอายุ: ${formatOrderDate(o.expires_at)}`
-      : "วันหมดอายุ: ไม่กำหนด",
+    `สินค้า: ${productTitle}`,
+    o.duration_days ? `ระยะเวลา: ${o.duration_days} วัน` : "ระยะเวลา: ไม่กำหนด",
     o.delivery,
+    valid
+      ? `วันหมดอายุ: ${new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric", era: "short" }).format(date)}`
+      : "วันหมดอายุ: ไม่กำหนด",
+    valid
+      ? `เวลาหมดอายุ: ${new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(date)} น.`
+      : null,
   ]
     .filter(Boolean)
     .join("\n");

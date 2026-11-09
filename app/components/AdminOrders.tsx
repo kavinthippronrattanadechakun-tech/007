@@ -370,7 +370,7 @@ export default function AdminOrders({
             {
               <details>
                 <summary>ดูข้อมูลที่ส่งให้ลูกค้า</summary>
-                <OrderDetails order={o} />
+                <OrderDetails order={o} productTitle={o.product_title} />
               </details>
             }
           </article>
