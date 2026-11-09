@@ -8,40 +8,26 @@ const order = {
   expires_at: "2027-01-01T23:30:00Z",
   delivery: "Mail: member@example.com\nPassword: secret",
 };
-test("Thai dates use Bangkok timezone, Buddhist year and full date/time across year boundary", () => {
-  const start = formatOrderDate(order.created_at),
-    end = formatOrderDate(order.expires_at);
-  assert.match(start, /1 มกราคม พ.ศ. 2570/);
-  assert.match(start, /06:30:00/);
-  assert.match(end, /2 มกราคม พ.ศ. 2570/);
-  assert.match(end, /06:30:00/);
-  assert.match(end, /เวลาไทย/);
+test("date formatting keeps Bangkok dates but omits the timezone label", () => {
+  const text = formatOrderDate(order.expires_at);
+  assert.match(text, /2 มกราคม พ.ศ. 2570/);
+  assert.match(text, /06:30:00/);
+  assert(!text.includes("เวลาไทย"));
 });
-test("copy text contains purchase, exact duration, expiry and delivery data together", () => {
-  const text = orderCopyText(order);
-  for (const part of [
-    "คำสั่งซื้อ: order-1",
-    "วันที่ซื้อ:",
-    "1 วัน (24 ชั่วโมง)",
-    "วันหมดอายุ:",
-    "Mail: member@example.com",
-    "Password: secret",
-  ])
-    assert(text.includes(part));
-  assert(
-    orderCopyText({ ...order, duration_days: 30 }).includes(
-      "30 วัน (720 ชั่วโมง)",
-    ),
+test("copy starts with product, shows days only and separates expiry date and time", () => {
+  assert.equal(
+    orderCopyText(order, "ChatGPT หาร 4 · 1 วัน"),
+    "สินค้า: ChatGPT หาร 4 · 1 วัน\nระยะเวลา: 1 วัน\nMail: member@example.com\nPassword: secret\nวันหมดอายุ: 2 มกราคม พ.ศ. 2570\nเวลาหมดอายุ: 06:30 น.",
   );
+  const text = orderCopyText({ ...order, duration_days: 30 }, "Netflix");
+  assert(text.includes("ระยะเวลา: 30 วัน"));
+  assert(!/order-1|คำสั่งซื้อ:|ชั่วโมง|เวลาไทย|วันที่ซื้อ:/.test(text));
 });
-test("unknown durations never invent expiry and processing orders can copy dates", () => {
-  const text = orderCopyText({
-    ...order,
-    duration_days: null,
-    expires_at: null,
-    delivery: null,
-  });
+test("orders without duration or delivery never invent a date or show null", () => {
+  const text = orderCopyText(
+    { ...order, duration_days: null, expires_at: null, delivery: null },
+    "สินค้า",
+  );
   assert(text.includes("วันหมดอายุ: ไม่กำหนด"));
-  assert(!text.includes("null"));
-  assert(!text.includes("undefined"));
+  assert(!/null|undefined|เวลาหมดอายุ:/.test(text));
 });

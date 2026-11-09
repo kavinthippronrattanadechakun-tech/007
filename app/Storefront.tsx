@@ -673,7 +673,13 @@ export default function Home({
                   ฿{o.price} ·{" "}
                   {o.status === "delivered" ? "ส่งสินค้าแล้ว" : "รอดำเนินการ"}
                 </span>
-                <OrderDetails order={o} />
+                <OrderDetails
+                  order={o}
+                  productTitle={
+                    products.find((p) => p.id === o.product_id)?.title ||
+                    "สินค้า"
+                  }
+                />
               </div>
             ))}
           </section>
