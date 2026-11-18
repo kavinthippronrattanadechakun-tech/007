@@ -809,3 +809,8 @@ footer p {
 .catalog-back:active {
   background: #eaeaea;
 }
+.line-notifications { min-width: 0; margin-block: 16px; }
+.line-notifications summary { cursor: pointer; font-weight: 650; min-height: 44px; }
+.line-notifications code { white-space: normal; overflow-wrap: anywhere; }
+.line-notifications li { overflow-wrap: anywhere; margin-block: 8px; }
+.line-notifications select { max-width: 100%; }

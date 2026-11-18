@@ -111,6 +111,12 @@ export default function Home({
       number: initialData?.settings.bank_account_number || "",
     }),
     [tab, setTab] = useState("shop");
+  useEffect(() => {
+    if (!authReady || !user || !isAdmin) return;
+    const sync = () => { if (window.location.hash === "#admin/manual") setTab("admin"); };
+    sync(); window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [authReady, user, isAdmin]);
   const [slipMode, setSlipMode] = useState({
     mode: "manual",
     reason: "not_configured",

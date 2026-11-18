@@ -63,6 +63,7 @@ export default function AdminStore({
     [loading, setLoading] = useState(true),
     [message, setMessage] = useState(""),
     [image, setImage] = useState<File | null>(null);
+  useEffect(() => { if (window.location.hash === "#admin/manual") setSection("manual"); }, []);
   async function load() {
     const [p, s, c] = await Promise.all([
       db.from("products").select("*").order("title"),

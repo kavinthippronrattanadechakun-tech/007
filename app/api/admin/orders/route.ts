@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { dispatchLineOrders } from "../../../../lib/line-notifications";
 import { admin, user, isAdmin, fail } from "../../../../lib/server";
 export async function GET(req: Request) {
   try {
@@ -33,6 +35,9 @@ export async function GET(req: Request) {
       p_offset: page * 50,
     });
     if (error) return fail("โหลดคำสั่งซื้อไม่สำเร็จ", 503);
+    if (status.startsWith("manual")) after(async () => {
+      try { await dispatchLineOrders(null, 1); } catch { console.error("LINE notification retry deferred"); }
+    });
     return Response.json(
       { rows: (data || []).slice(0, 50), hasMore: (data || []).length > 50 },
       { headers: { "Cache-Control": "no-store" } },

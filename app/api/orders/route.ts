@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { dispatchLineOrders } from "../../../lib/line-notifications";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseUrl } from "../../../lib/supabase-config";
 import { fail } from "../../../lib/server";
@@ -30,6 +32,12 @@ export async function POST(req: Request) {
             ? "กรุณากรอกอีเมลสำหรับสินค้านี้ให้ถูกต้อง"
             : error.message,
       );
+    if (data?.status === "processing" && data.order_id) {
+      after(async () => {
+        try { await dispatchLineOrders(data.order_id, 1); }
+        catch { console.error("LINE order notification queued for retry"); }
+      });
+    }
     return Response.json({ data });
   } catch {
     return fail("สั่งซื้อไม่สำเร็จ", 500);

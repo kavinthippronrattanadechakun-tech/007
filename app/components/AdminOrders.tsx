@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import LineNotifications from "./LineNotifications";
+import { manualDeliveryText } from "../../lib/manual-delivery";
 import OrderDetails from "./OrderDetails";
 import OrderInventory from "./OrderInventory";
 import { formatOrderDate } from "../../lib/order-expiry";
@@ -55,9 +57,20 @@ export default function AdminOrders({
     [clock, setClock] = useState(Date.now()),
     [sending, setSending] = useState<string | null>(null),
     [deliveryDrafts, setDeliveryDrafts] = useState<Record<string, string>>({}),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [mails, setMails] = useState<Record<string, string>>({}),
+    [passwords, setPasswords] = useState<Record<string, string>>({});
   async function markDelivered(o: Row) {
     if (sending) return;
+    const delivery = manualDeliveryText(
+      mails[o.id] || "",
+      passwords[o.id] || "",
+      deliveryDrafts[o.id] ?? o.delivery ?? "",
+    );
+    if (delivery.length > 16384) {
+      setNotice("ข้อมูลส่งมอบยาวเกินไป กรุณาลดข้อความ");
+      return;
+    }
     setSending(o.id);
     setNotice("");
     try {
@@ -71,7 +84,7 @@ export default function AdminOrders({
           },
           body: JSON.stringify({
             orderId: o.id,
-            delivery: deliveryDrafts[o.id] ?? o.delivery ?? "",
+            delivery,
           }),
         }),
         result = await r.json();
@@ -88,11 +101,12 @@ export default function AdminOrders({
                 ...row,
                 status: "delivered",
                 delivered_at: result.data.delivered_at,
-                delivery: deliveryDrafts[o.id] ?? row.delivery,
+                delivery,
               }
             : row,
         ),
       );
+      setPasswords((old) => ({ ...old, [o.id]: "" }));
       setRefresh((n) => n + 1);
       await onChanged?.();
     } catch (e) {
@@ -157,9 +171,9 @@ export default function AdminOrders({
       )}
       {mode === "manual" && (
         <>
+          <LineNotifications db={db} />
           <p>
-            สีแดง = ยังไม่ได้จัดส่ง · สีเขียว = จัดส่งแล้ว
-            ติ๊กเมื่อดำเนินการส่งให้ลูกค้าเรียบร้อย
+            สีแดง = ยังไม่ได้จัดส่ง · สีเขียว = จัดส่งแล้ว ติ๊กเมื่อดำเนินการส่งให้ลูกค้าเรียบร้อย
           </p>
           <nav className="tabs" aria-label="รายการจัดส่งเอง">
             {[
@@ -182,8 +196,8 @@ export default function AdminOrders({
       {mode === "restock" && (
         <>
           <p>
-            รายการหมดอายุจะแสดงสีแดง อัปเดตอัตโนมัติทุก 30 วินาที เลือก
-            “ยังไม่หมดอายุ” เพื่อคืนสต็อกก่อนกำหนดได้
+            รายการหมดอายุจะแสดงสีแดง อัปเดตอัตโนมัติทุก 30 วินาที เลือก “ยังไม่หมดอายุ”
+            เพื่อคืนสต็อกก่อนกำหนดได้
           </p>
           <nav className="tabs restock-tabs" aria-label="รายการรีสต็อก">
             {[
@@ -235,9 +249,7 @@ export default function AdminOrders({
             <option value="delivered">ส่งสินค้าแล้ว</option>
             <option value="expired">หมดอายุและยังไม่ได้จัดการสต็อก</option>
             <option value="active">ยังไม่หมดอายุ รอจัดการ</option>
-            <option value="pending_restock">
-              ส่งแล้ว รอจัดการสต็อกทั้งหมด
-            </option>
+            <option value="pending_restock">ส่งแล้ว รอจัดการสต็อกทั้งหมด</option>
             <option value="restocked">คืนสต็อกแล้ว</option>
             <option value="removed">นำสินค้าออกแล้ว</option>
             <option value="manual_pending">จัดส่งเอง: ยังไม่ได้จัดส่ง</option>
@@ -295,27 +307,69 @@ export default function AdminOrders({
               o.status === "delivered" &&
               o.expires_at &&
               Date.parse(o.expires_at) <= clock && (
-                <strong className="expired-label">
-                  หมดอายุแล้ว · รอรีสต็อก
-                </strong>
+                <strong className="expired-label">หมดอายุแล้ว · รอรีสต็อก</strong>
               )}
             {mode === "manual" && (
               <div className="manual-delivery-control">
                 {o.status !== "delivered" && (
-                  <label>
-                    ข้อมูลส่งให้ลูกค้า (ถ้ามี)
-                    <textarea
-                      maxLength={16384}
-                      value={deliveryDrafts[o.id] ?? o.delivery ?? ""}
-                      onChange={(e) =>
-                        setDeliveryDrafts((old) => ({
-                          ...old,
-                          [o.id]: e.target.value,
-                        }))
-                      }
-                      disabled={sending === o.id}
-                    />
-                  </label>
+                  <fieldset
+                    className="admin-fieldset"
+                    disabled={sending === o.id}
+                  >
+                    <legend>ข้อมูลส่งมอบให้ลูกค้า (ไม่บังคับ)</legend>
+                    <label>
+                      Mail สำหรับส่งมอบ
+                      <input
+                        type="email"
+                        maxLength={320}
+                        autoComplete="off"
+                        value={mails[o.id] || ""}
+                        onChange={(e) =>
+                          setMails((old) => ({
+                            ...old,
+                            [o.id]: e.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      Password สำหรับส่งมอบ
+                      <input
+                        type="text"
+                        maxLength={1000}
+                        autoComplete="off"
+                        value={passwords[o.id] || ""}
+                        onChange={(e) =>
+                          setPasswords((old) => ({
+                            ...old,
+                            [o.id]: e.target.value.replace(/[\r\n]/g, ""),
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      ข้อมูลส่งให้ลูกค้า (ถ้ามี)
+                      <small>
+                        ข้อมูลเพิ่มเติม เช่น วิธีเข้าใช้งาน ข้อความหรือรายละเอียดอื่น
+                      </small>
+                      <textarea
+                        aria-label="ข้อมูลส่งให้ลูกค้า (ถ้ามี)"
+                        maxLength={16384}
+                        value={deliveryDrafts[o.id] ?? o.delivery ?? ""}
+                        onChange={(e) =>
+                          setDeliveryDrafts((old) => ({
+                            ...old,
+                            [o.id]: e.target.value,
+                          }))
+                        }
+                        disabled={sending === o.id}
+                      />
+                    </label>
+                    <p>
+                      ลูกค้าดูและคัดลอกข้อมูลนี้ได้ในคำสั่งซื้อหลังติ๊กจัดส่งแล้ว
+                      ช่องที่ไม่กรอกจะไม่แสดง
+                    </p>
+                  </fieldset>
                 )}
                 <label className="checkbox">
                   <input
@@ -326,9 +380,7 @@ export default function AdminOrders({
                       if (e.target.checked) void markDelivered(o);
                     }}
                   />
-                  {o.status === "delivered"
-                    ? "จัดส่งแล้ว"
-                    : "ติ๊กเมื่อจัดส่งแล้ว"}
+                  {o.status === "delivered" ? "จัดส่งแล้ว" : "ติ๊กเมื่อจัดส่งแล้ว"}
                 </label>
                 {o.delivered_at && (
                   <small>เวลาจัดส่ง: {formatOrderDate(o.delivered_at)}</small>
