@@ -94,7 +94,7 @@ const { chromium } = require("playwright"),
         ? {
             ...pending,
             status: "delivered",
-            delivery: "Mail: next@example.com",
+            delivery: "Mail: next@example.com\nPassword: delivery-pass\nnote",
             delivered_at: new Date().toISOString(),
           }
         : pending;
@@ -113,7 +113,7 @@ const { chromium } = require("playwright"),
     await p.route("**/api/admin/orders/fulfill", (r) => {
       const body = r.request().postDataJSON();
       assert.equal(body.orderId, pending.id);
-      assert.equal(body.delivery, "Mail: next@example.com");
+      assert.equal(body.delivery, "Mail: next@example.com\nPassword: delivery-pass\nnote");
       calls++;
       sent = true;
       return r.fulfill({
@@ -126,13 +126,32 @@ const { chromium } = require("playwright"),
         },
       });
     });
-    await p.goto(process.env.TEST_URL || "http://127.0.0.1:3023");
-    await p.getByRole("button", { name: "หลังบ้าน", exact: true }).click();
-    await p.getByRole("button", { name: "จัดส่งเอง", exact: true }).click();
+    const lineState={configured:true,settings:{enabled:false,target_id:null},destinations:[{id:"C"+"a".repeat(32),kind:"group"}],jobs:[]};
+    let lineTests=0,retries=0;
+    await p.route("**/api/admin/line",r=>{
+      if(r.request().method()==="GET")return r.fulfill({json:lineState});
+      const body=r.request().postDataJSON();
+      if(body.action==="save"){lineState.settings={enabled:body.enabled,target_id:body.targetId};return r.fulfill({json:{ok:true}})}
+      if(body.action==="test"){lineTests++;return r.fulfill({json:{ok:true}})}
+      if(body.action==="retry"){retries++;return r.fulfill({json:{sent:1,failed:0}})}
+    });
+    await p.goto((process.env.TEST_URL || "http://127.0.0.1:3023")+"/#admin/manual");
     await p
       .getByRole("heading", { name: "รายการจัดส่งเอง", exact: true })
       .waitFor();
     await p.locator(".order-manual-pending").waitFor();
+    await p.getByText("🔔 ตั้งค่าแจ้งเตือนคำสั่งซื้อเข้า LINE",{exact:true}).click();
+    await p.getByLabel("แชต LINE รับแจ้งเตือน",{exact:true}).selectOption("C"+"a".repeat(32));
+    await p.getByLabel("เปิดแจ้งเตือน LINE",{exact:true}).check();
+    await p.getByRole("button",{name:"บันทึก LINE",exact:true}).click();
+    await p.getByText("บันทึก LINE แล้ว",{exact:true}).waitFor();
+    await p.getByRole("button",{name:"ส่งทดสอบเข้า LINE",exact:true}).click();
+    await p.getByText("ส่งข้อความทดสอบแล้ว กรุณาดูใน LINE",{exact:true}).waitFor();
+    p.once("dialog",d=>d.accept());
+    await p.getByRole("button",{name:"ส่งแจ้งเตือนที่ค้าง",exact:true}).click();
+    await p.getByText("ส่งสำเร็จ 1 รายการ · ไม่สำเร็จ 0 รายการ",{exact:true}).waitFor();
+    assert.equal(lineTests,1);assert.equal(retries,1);
+    await p.getByText("🔔 ตั้งค่าแจ้งเตือนคำสั่งซื้อเข้า LINE",{exact:true}).click();
     assert.equal(statuses.at(-1), "manual_pending");
     assert.equal(
       await p
@@ -148,10 +167,9 @@ const { chromium } = require("playwright"),
         .evaluate((e) => getComputedStyle(e).backgroundColor),
       "rgb(237, 255, 242)",
     );
-    await p
-      .locator(".order-manual-pending")
-      .getByLabel("ข้อมูลส่งให้ลูกค้า (ถ้ามี)", { exact: true })
-      .fill("Mail: next@example.com");
+    await p.locator(".order-manual-pending").getByLabel("Mail สำหรับส่งมอบ",{exact:true}).fill("next@example.com");
+    await p.locator(".order-manual-pending").getByLabel("Password สำหรับส่งมอบ",{exact:true}).fill("delivery-pass");
+    await p.locator(".order-manual-pending").getByLabel("ข้อมูลส่งให้ลูกค้า (ถ้ามี)",{exact:true}).fill("note");
     await p.getByLabel("ติ๊กเมื่อจัดส่งแล้ว", { exact: true }).click();
     await p
       .getByRole("status")
@@ -178,7 +196,7 @@ const { chromium } = require("playwright"),
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: dedicated manual queue, immediate pending/delivered/all filters, red/green cards, optional delivery text, completion checkbox, persisted completed view, no duplicate submit and mobile width",
+      "PASS: LINE settings/target/test/retry controls, admin deep link, structured Mail/Password/notes delivery, dedicated manual queue, immediate pending/delivered/all filters, red/green cards, optional delivery text, completion checkbox, persisted completed view, no duplicate submit and mobile width",
     );
   } finally {
     await b.close();

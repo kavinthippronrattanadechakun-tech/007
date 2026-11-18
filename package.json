@@ -19,7 +19,8 @@
     "test:stability": "node tests/storefront-stability.cjs",
     "test:subcategories": "node tests/chatgpt-subcategories.cjs",
     "test:email-limit": "node tests/auth-email-limit.cjs",
-    "test:manual-delivery": "node tests/manual-delivery.cjs"
+    "test:manual-delivery": "node tests/manual-delivery.cjs",
+    "test:line": "node --test tests/line-notifications.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
