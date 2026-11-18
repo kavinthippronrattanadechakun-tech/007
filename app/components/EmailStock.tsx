@@ -1,4 +1,6 @@
 "use client";
+import MoveStock from "./MoveStock";
+import type { Product } from "../../lib/store";
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -94,10 +96,7 @@ function Fields({
               onChange={(e) => onChange({ ...value, pin: e.target.value })}
             />
           </label>
-          <p>
-            หนึ่งจอต่อหนึ่งรายการ ตั้งสต็อกได้ 1
-            เพื่อไม่ส่งจอเดียวให้ลูกค้าหลายคน
-          </p>
+          <p>หนึ่งจอต่อหนึ่งรายการ ตั้งสต็อกได้ 1 เพื่อไม่ส่งจอเดียวให้ลูกค้าหลายคน</p>
         </>
       )}
       <label>
@@ -117,10 +116,12 @@ export default function EmailStock({
   db,
   productId,
   onChanged,
+  products = [],
 }: {
   db: SupabaseClient;
   productId: string;
   onChanged?: () => Promise<void>;
+  products?: Product[];
 }) {
   const [rows, setRows] = useState<Batch[]>([]),
     [drafts, setDrafts] = useState<StockDraft[]>([emptyStock()]),
@@ -293,9 +294,7 @@ export default function EmailStock({
               editing
               onChange={(v) => setEdit({ ...edit, ...v })}
             />
-            <p>
-              ข้อมูลใหม่มีผลกับการซื้อครั้งต่อไป ประวัติที่ส่งแล้วจะไม่เปลี่ยน
-            </p>
+            <p>ข้อมูลใหม่มีผลกับการซื้อครั้งต่อไป ประวัติที่ส่งแล้วจะไม่เปลี่ยน</p>
             <div className="actions">
               <button>บันทึกอีเมลและจำนวน</button>
               <button
@@ -320,6 +319,17 @@ export default function EmailStock({
               เหลือ {row.remaining} สิทธิ์ · ขายแล้ว {row.sold} สิทธิ์
               {row.has_screen && ` · Screen ${row.screen}`}
             </span>
+            {row.remaining > 0 && (
+              <MoveStock
+                db={db}
+                stockId={row.id}
+                kind="account"
+                fromProductId={productId}
+                remaining={row.remaining}
+                products={products}
+                onChanged={() => run(async () => {})}
+              />
+            )}
             <details>
               <summary>ดูข้อมูลส่งมอบ</summary>
               <div className="secret">
@@ -354,8 +364,7 @@ export default function EmailStock({
                           .eq("sold", 0)
                           .select("id")
                           .single();
-                        if (r.error)
-                          throw Error("ลบไม่สำเร็จ รายการอาจขายแล้ว");
+                        if (r.error) throw Error("ลบไม่สำเร็จ รายการอาจขายแล้ว");
                       });
                   }}
                 >

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import MoveStock from "./MoveStock";
 import EmailStock from "./EmailStock";
 import AdminOrders from "./AdminOrders";
 import AdminCustomers from "./AdminCustomers";
@@ -241,9 +242,7 @@ export default function AdminStore({
         .map((s) => s.trim())
         .filter(Boolean);
       if (!selected || !lines.length || lines.length > 200)
-        throw Error(
-          "เลือกสินค้าและใส่โค้ด 1–200 รายการ ครั้งละ 1 โค้ดต่อบรรทัด",
-        );
+        throw Error("เลือกสินค้าและใส่โค้ด 1–200 รายการ ครั้งละ 1 โค้ดต่อบรรทัด");
       if (new Set(lines).size !== lines.length)
         throw Error("มีโค้ดซ้ำในข้อความที่กรอก");
       if (lines.some((s) => s.length > 16384))
@@ -420,8 +419,8 @@ export default function AdminStore({
                   </select>
                 </label>
                 <p>
-                  หนึ่งสินค้า = หนึ่งแพ็กเกจ เช่น Netflix 1 เดือน และ Netflix 3
-                  เดือน มีราคาและสต็อกแยกกัน
+                  หนึ่งสินค้า = หนึ่งแพ็กเกจ เช่น Netflix 1 เดือน และ Netflix 3 เดือน
+                  มีราคาและสต็อกแยกกัน
                 </p>
                 {products
                   .filter(
@@ -581,7 +580,8 @@ export default function AdminStore({
                   </select>
                 </label>
                 <p>
-                  สินค้าที่เลือกหมวดย่อยจะแสดงให้ลูกค้ากดเลือกประเภทก่อนเลือกแพ็กเกจ
+                  เลือกหมวดย่อยให้สินค้าได้เอง หน้าร้านจะแสดงเฉพาะหมวดย่อยที่มีสินค้าอยู่ เช่น
+                  กำหนดเฉพาะหาร 3 ก็จะแสดงแค่หาร 3
                 </p>
                 <label className="checkbox">
                   <input
@@ -652,9 +652,7 @@ export default function AdminStore({
                   />
                 </label>
                 {image && <p>รูปใหม่: {image.name}</p>}
-                <button type="submit">
-                  {busy ? "กำลังบันทึก…" : "บันทึกสินค้า"}
-                </button>
+                <button type="submit">{busy ? "กำลังบันทึก…" : "บันทึกสินค้า"}</button>
               </form>
             </div>
           )}
@@ -695,13 +693,13 @@ export default function AdminStore({
                     <b>{counts.sold}</b> รายการ
                   </p>
                   <p>
-                    ใช้โค้ดจากสต็อกอัตโนมัติเมื่อสินค้าตั้งวิธีส่งเป็น
-                    “ส่งโค้ด/อีเมลจากสต็อกอัตโนมัติ”
+                    ใช้โค้ดจากสต็อกอัตโนมัติเมื่อสินค้าตั้งวิธีส่งเป็น “ส่งโค้ด/อีเมลจากสต็อกอัตโนมัติ”
                   </p>
                   <EmailStock
                     key={selected}
                     db={db}
                     productId={selected}
+                    products={products}
                     onChanged={onChanged}
                   />
                   <h3>สต็อกโค้ดแบบเดิม (1 โค้ดต่อการซื้อ)</h3>
@@ -756,6 +754,20 @@ export default function AdminStore({
                         {item.order_id ? "ขายแล้ว (เก็บประวัติ)" : "พร้อมขาย"}
                       </span>
                       {!item.order_id && (
+                        <MoveStock
+                          db={db}
+                          stockId={item.id}
+                          kind="code"
+                          fromProductId={selected}
+                          remaining={1}
+                          products={products}
+                          onChanged={async () => {
+                            await refreshStock();
+                            await onChanged();
+                          }}
+                        />
+                      )}
+                      {!item.order_id && (
                         <div className="actions">
                           <button
                             className="outline"
@@ -801,8 +813,8 @@ export default function AdminStore({
               {section === "bank" && (
                 <p>
                   ข้อมูลนี้จะแสดงให้ลูกค้าเห็นในหน้าเติมเงิน
-                  ตรวจสอบชื่อและเลขบัญชีให้ถูกต้องก่อนบันทึก
-                  หากต้องการปิดแสดงบัญชี ให้ล้างข้อมูลทั้ง 3 ช่องแล้วบันทึก
+                  ตรวจสอบชื่อและเลขบัญชีให้ถูกต้องก่อนบันทึก หากต้องการปิดแสดงบัญชี
+                  ให้ล้างข้อมูลทั้ง 3 ช่องแล้วบันทึก
                 </p>
               )}
               {(Object.keys(labels) as (keyof StoreSettings)[])
@@ -846,9 +858,7 @@ export default function AdminStore({
                   </label>
                 ))}
               <button>
-                {section === "bank"
-                  ? "บันทึกบัญชีธนาคาร"
-                  : "บันทึกข้อความหน้าร้าน"}
+                {section === "bank" ? "บันทึกบัญชีธนาคาร" : "บันทึกข้อความหน้าร้าน"}
               </button>
             </form>
           )}

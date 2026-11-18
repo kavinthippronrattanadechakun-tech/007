@@ -1,0 +1,32 @@
+begin;
+do $$
+declare a uuid;u uuid;p text:='move-'||gen_random_uuid();t text:='target-'||gen_random_uuid();m text:='manual-'||gen_random_uuid();b uuid;s uuid;o uuid;res jsonb;dest uuid;old_delivery text;
+begin
+ select id into a from public.profiles where is_admin limit 1;select id into u from public.profiles where not is_admin limit 1;u:=coalesce(u,a);
+ insert into public.products(id,title,price,active,delivery_type,duration_days) values(p,p,1,true,'code',1),(t,t,1,true,'code',7),(m,m,1,true,'manual',1);
+ insert into public.email_stock_batches(product_id,email,password,remaining,sold,delivery_info) values(p,'move@example.com','pass',3,1,'info') returning id into b;
+ insert into public.orders(user_id,product_id,price,status,delivery,stock_batch_id,created_at) values(u,p,1,'delivered',E'Mail: move@example.com\nPassword: pass',b,now()-interval '48 hours') returning id into o;
+ select delivery into old_delivery from public.orders where id=o;
+ res:=public.admin_move_stock(b,'account',p,t,a,3);dest:=(res->>'target_id')::uuid;
+ if (select remaining from public.email_stock_batches where id=b)<>0 or (select remaining from public.email_stock_batches where id=dest)<>3 then raise exception 'wrong quantities';end if;
+ if (select product_id from public.orders where id=o)<>p or (select delivery from public.orders where id=o)<>old_delivery then raise exception 'order history changed';end if;
+ begin perform public.admin_move_stock(b,'account',p,t,a,3);raise exception 'duplicate move allowed';exception when raise_exception then if sqlerrm<>'Source stock changed' then raise;end if;end;
+ perform public.admin_restock_to_product(o,a,'restock','','',false,t);perform public.admin_restock_to_product(o,a,'restock','','',false,t);
+ if (select remaining from public.email_stock_batches where id=dest)<>4 then raise exception 'cross restock not exactly one';end if;
+ if (select remaining from public.email_stock_batches where id=b)<>0 then raise exception 'cross restock changed source';end if;
+ insert into public.stock(product_id,secret) values(p,'legacy-move') returning id into s;
+ perform public.admin_move_stock(s,'code',p,t,a,null);if (select product_id from public.stock where id=s)<>t then raise exception 'legacy move failed';end if;
+ insert into public.email_stock_batches(product_id,email,password,remaining,delivery_info) values(p,'conflict@example.com','one',2,'') returning id into b;
+ insert into public.email_stock_batches(product_id,email,password,remaining,delivery_info) values(t,'conflict@example.com','two',1,'');
+ begin perform public.admin_move_stock(b,'account',p,t,a,2);raise exception 'conflicting credentials merged';exception when raise_exception then if sqlerrm<>'Target credentials differ' then raise;end if;end;
+ if (select remaining from public.email_stock_batches where id=b)<>2 then raise exception 'failed move lost stock';end if;
+ begin perform public.admin_move_stock(b,'account',p,m,a,2);raise exception 'manual target allowed';exception when raise_exception then if sqlerrm<>'Invalid target product' then raise;end if;end;
+ begin perform public.admin_move_stock(b,'account',p,t,a,1);raise exception 'stale stock allowed';exception when raise_exception then if sqlerrm<>'Source stock changed' then raise;end if;end;
+ if u<>a then begin perform public.admin_move_stock(b,'account',p,t,u,2);raise exception 'nonadmin allowed';exception when raise_exception then if sqlerrm<>'Admin required' then raise;end if;end;end if;
+ if has_function_privilege('authenticated','public.admin_move_stock(uuid,text,text,text,uuid,integer)','execute') or has_function_privilege('anon','public.admin_restock_to_product(uuid,uuid,text,text,text,boolean,text)','execute') then raise exception 'RPC exposed';end if;
+ insert into public.stock(product_id,secret) values(p,'service-role-move') returning id into s;
+ perform set_config('test.move_id',s::text,true);perform set_config('test.move_from',p,true);perform set_config('test.move_to',t,true);perform set_config('test.move_actor',a::text,true);
+end$$;
+set local role service_role;
+select (public.admin_move_stock(current_setting('test.move_id')::uuid,'code',current_setting('test.move_from'),current_setting('test.move_to'),current_setting('test.move_actor')::uuid,null)->>'ok')::boolean as actual_service_role_transfer;
+rollback;
