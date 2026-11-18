@@ -232,6 +232,7 @@ const defaults = {
       assert.equal(body.orderId, "order-test");
       assert.equal(body.action, "restock");
       assert.equal(body.password, "next-password");
+      assert.equal(body.targetProductId, "test");
       inventoryCalls++;
       return r.fulfill({ json: { data: { ok: true, action: "restock" } } });
     }
@@ -433,6 +434,7 @@ const defaults = {
     .getByRole("button", { name: "รีสต็อก / นำสินค้าออก", exact: true })
     .click();
   await p.getByLabel("การจัดการสต็อก", { exact: true }).selectOption("restock");
+  await p.getByLabel("สินค้า / แพ็กเกจปลายทาง", {exact:true}).selectOption("test");
   await p.getByLabel("แก้ไขรหัสผ่านก่อนคืนสต็อก", { exact: true }).check();
   await p
     .getByLabel("รหัสผ่านสำหรับผู้ซื้อครั้งถัดไป", { exact: true })
@@ -652,6 +654,29 @@ const defaults = {
       await p.evaluate(() => window.__copied),
     ),
   );
+  products.push({...products[0],id:"target-package",title:"แพ็กเกจปลายทาง"});
+  await p.getByRole("button",{name:"บันทึกสินค้า",exact:true}).click();
+  await p.getByRole("button",{name:"สต็อกสินค้า",exact:true}).click();
+  await p.getByLabel(/^เลือกสินค้า/).selectOption("test");
+  let moved=[];
+  await p.route("**/api/admin/stock/move",r=>{
+    const body=r.request().postDataJSON();moved.push(body);
+    assert.equal(body.fromProductId,"test");assert.equal(body.targetProductId,"target-package");
+    if(body.kind==="account"){assert.equal(body.expectedRemaining,2);batches[0].remaining=0;}
+    return r.fulfill({json:{data:{quantity:body.kind==="account"?2:1}}});
+  });
+  for(const kind of ["account","code"]){
+    const box=p.locator(".move-stock").filter({has:p.getByRole("button",{name:"ย้ายสต็อกไปสินค้าอื่น",exact:true})});
+    // Email batches are displayed before legacy code rows.
+    await box.first().getByRole("button",{name:"ย้ายสต็อกไปสินค้าอื่น",exact:true}).click();
+    const open=p.locator(".move-stock").filter({has:p.getByRole("button",{name:"ยืนยันย้ายสต็อก",exact:true})});
+    await open.getByLabel("สินค้า / แพ็กเกจปลายทาง",{exact:true}).selectOption("target-package");
+    await open.getByRole("button",{name:"ยืนยันย้ายสต็อก",exact:true}).click();
+    await p.waitForTimeout(200);
+    assert.equal(moved.at(-1).kind,kind);
+  }
+  assert.equal(moved.length,2);assert.equal(batches[0].remaining,0);
+  assert.deepEqual(errors,[]);
   console.log(
     "PASS: category cards, package drilldown, detail refresh, aggregate stock display, editable category metadata;  SlipOK 99-limit UI and manual fallback; category add/rename/product assignment/storefront filtering; multi-email quantities and delivery add/edit/delete; edit product + price + uploaded image; add/edit/delete stock; save storefront text and render immediately; validate and save bank account and show on topup; mobile width; no browser exceptions",
   );

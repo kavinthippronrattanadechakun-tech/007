@@ -13,6 +13,7 @@ require.extensions[".ts"] = (m, p) =>
     }).outputText,
     p,
   );
+const move = require("../app/api/admin/stock/move/route.ts");
 const fulfill = require("../app/api/admin/orders/fulfill/route.ts");
 const customers = require("../app/api/admin/customers/route.ts"),
   orders = require("../app/api/admin/orders/route.ts"),
@@ -58,6 +59,8 @@ async function scenario(kind, route, method = "GET", body) {
           return json({ ok: true, already_delivered: false });
         if (name === "admin_order_inventory")
           return json({ kind: "account", can_restock: true });
+        if (name === "admin_move_stock") return json({ok:true, quantity:2});
+        if (name === "admin_restock_to_product") return json({ok:true});
         if (name === "admin_manage_order_inventory")
           return json({ ok: true, action: payload.p_action });
         if (name === "admin_order_list")
@@ -89,7 +92,7 @@ async function scenario(kind, route, method = "GET", body) {
       },
     );
     const module =
-      route === "fulfill"
+      route === "move" ? move : route === "fulfill"
         ? fulfill
         : route === "inventory"
           ? inventory
@@ -224,4 +227,17 @@ test("manual fulfillment requires admin, validates payload and uses authenticate
   assert.equal(r.status, 200);
   assert.equal(r.calls[0].payload.p_actor, uid);
   assert.equal(r.calls[0].payload.p_delivery, "delivery text");
+});
+
+test("move stock requires admin, validates quantity and binds actor to session", async () => {
+ const payload={stockId:target,kind:"account",fromProductId:"source",targetProductId:"dest",expectedRemaining:2,actor:"spoofed"};
+ for(const kind of ["unauth","nonadmin","invalid-user"]){const r=await scenario(kind,"move","POST",payload); assert.equal(r.status,403);assert.equal(r.calls.length,0);}
+ for(const bad of [{stockId:"bad"},{kind:"manual"},{targetProductId:"source"},{expectedRemaining:0},{expectedRemaining:1.5},{expectedRemaining:100001}]){const r=await scenario("ok","move","POST",{...payload,...bad});assert.equal(r.status,400);assert.equal(r.calls.length,0);}
+ const r=await scenario("ok","move","POST",payload);assert.equal(r.status,200);assert.equal(r.calls[0].payload.p_actor,uid);assert.equal(r.calls[0].payload.p_expected_remaining,2);
+ const c=await scenario("ok","move","POST",{...payload,kind:"code"});assert.equal(c.status,200);assert.equal(c.calls[0].payload.p_expected_remaining,null);
+});
+test("restock into selected product uses dedicated RPC and original restock remains compatible",async()=>{
+ const r=await scenario("ok","inventory","POST",{orderId:target,action:"restock",targetProductId:"dest",password:"new",allowEarly:true});assert.equal(r.status,200);assert.equal(r.calls[0].name,"admin_restock_to_product");assert.equal(r.calls[0].payload.p_target_product,"dest");assert.equal(r.calls[0].payload.p_actor,uid);
+ const old=await scenario("ok","inventory","POST",{orderId:target,action:"restock"});assert.equal(old.calls[0].name,"admin_manage_order_inventory");
+ for(const targetProductId of [12,"", "x".repeat(201)]){const r=await scenario("ok","inventory","POST",{orderId:target,action:"restock",targetProductId});assert.equal(r.status,400);assert.equal(r.calls.length,0);}
 });

@@ -3,33 +3,10 @@ const { chromium } = require("playwright"),
   fs = require("node:fs"),
   assert = require("node:assert/strict");
 (async () => {
-  const env = Object.fromEntries(
-      fs
-        .readFileSync(".env.local", "utf8")
-        .split("\n")
-        .filter((l) => l.startsWith("NEXT_PUBLIC_"))
-        .map((l) => {
-          const i = l.indexOf("=");
-          return [l.slice(0, i), l.slice(i + 1)];
-        }),
-    ),
-    db = createClient(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { auth: { persistSession: false } },
-    ),
-    [s, ps, cs] = await Promise.all([
-      db.from("store_settings").select("*").eq("id", true).single(),
-      db.from("products").select("*"),
-      db.from("product_categories").select("*"),
-    ]);
-  assert(!s.error && !ps.error && !cs.error);
-  const products = ps.data,
-    categories = cs.data,
-    category = categories.find(
-      (c) => c.name.trim().toLowerCase() === "chatgpt",
-    );
-  assert(category);
+  const category={id:"cat-chatgpt",name:"ChatGPT",sort_order:1};
+  const categories=[category,{id:"cat-netflix",name:"Netflix",sort_order:2}];
+  const products=["share4","share3","private"].map((id,i)=>({id,category_id:category.id,subcategory:id,title:"Package "+id,price:10,active:true,delivery_type:"code",duration_days:1}));
+  const s={data:{brand_name:"Test Shop",hero_title:"Shop",hero_description:"",announcement:"",contact_text:"",footer_text:""}};
   const browser = await chromium.launch({
     executablePath: "/usr/bin/chromium",
     headless: true,
@@ -40,10 +17,41 @@ const { chromium } = require("playwright"),
     p.setDefaultTimeout(12000);
     const errors = [];
     p.on("pageerror", (e) => errors.push(e.message));
+  const u = {
+    id: "11111111-1111-4111-8111-111111111111",
+    email: "admin@example.com",
+    aud: "authenticated",
+    role: "authenticated",
+    app_metadata: {},
+    user_metadata: {},
+    created_at: new Date().toISOString(),
+  };
+  const enc = (x) => Buffer.from(JSON.stringify(x)).toString("base64url");
+  const token =
+    enc({ alg: "HS256" }) +
+    "." +
+    enc({ sub: u.id, exp: Math.floor(Date.now() / 1000) + 3600 }) +
+    ".test";
+  await p.addInitScript(
+    ({ u, token }) =>
+      localStorage.setItem(
+        "sb-ycnqqhrsfmrnaxkmmkut-auth-token",
+        JSON.stringify({
+          access_token: token,
+          refresh_token: "test",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          expires_in: 3600,
+          token_type: "bearer",
+          user: u,
+        }),
+      ),
+    { u, token },
+  );
+
     await p.route("https://*.supabase.co/**", (r) => {
       const path = new URL(r.request().url()).pathname;
       return r.fulfill({
-        json: path.includes("/store_settings")
+        json: path.includes("/auth/v1/user") ? u : path.includes("/profiles") ? {balance:0,is_admin:false} : path.includes("/store_settings")
           ? s.data
           : path.includes("/product_categories")
             ? categories
@@ -61,6 +69,7 @@ const { chromium } = require("playwright"),
     await p
       .getByRole("heading", { name: "ChatGPT · เลือกประเภท", exact: true })
       .waitFor();
+    await p.waitForFunction(()=>document.querySelectorAll(".subcategory-card").length===3);
     assert.deepEqual(
       await p.locator(".subcategory-card h3").allTextContents(),
       ["หาร 4", "หาร 3", "ส่วนตัว"],
@@ -119,6 +128,13 @@ const { chromium } = require("playwright"),
       await p.getByRole("heading", { name: "Netflix", exact: true }).waitFor();
       assert.equal(await p.locator(".subcategory-card").count(), 0);
     }
+    products.splice(0,products.length,...products.filter(p=>p.category_id!==category.id||p.subcategory==="share3"));
+    await p.goto(base+"/#catalog/"+category.id);
+    await p.reload();
+    await p.waitForFunction(()=>document.querySelectorAll(".subcategory-card").length===1);
+    assert.deepEqual(await p.locator(".subcategory-card h3").allTextContents(),["หาร 3"]);
+    assert(await p.locator(".catalog-back svg").count()>0);
+    assert(await p.locator(".catalog-back").first().evaluate(el=>el.getBoundingClientRect().height>=44));
     assert.deepEqual(errors, []);
     console.log(
       "PASS: three ChatGPT subcategory cards, exact package filtering, refresh/detail/back navigation, old direct product links, mobile width and unchanged Netflix browsing",

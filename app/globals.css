@@ -772,3 +772,40 @@ footer p {
 .order-manual-delivered > .manual-status {
   color: #16803b;
 }
+
+.catalog-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #dedede;
+  border-radius: 999px;
+  background: #fff;
+  color: #292929;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  box-shadow: 0 2px 6px #00000005;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+  max-width: 100%;
+}
+.catalog-back svg {
+  flex: none;
+}
+.catalog-back:hover {
+  background: #f3f3f3;
+  border-color: #aaa;
+  box-shadow: 0 3px 10px #0000000a;
+}
+.catalog-back:focus-visible {
+  outline: 3px solid #888;
+  outline-offset: 3px;
+}
+.catalog-back:active {
+  background: #eaeaea;
+}

@@ -13,8 +13,11 @@ const messages: Record<string, string> = {
   "Stock already available": "สต็อกนี้พร้อมขายอยู่แล้ว ไม่เพิ่มซ้ำ",
   "Stock not found": "ไม่พบสต็อกต้นทาง",
   "No stock source": "รายการนี้ไม่มีสต็อกต้นทาง กรุณาเพิ่มผ่านหน้าสต็อกสินค้า",
-  "Other customers active":
-    "อีเมลนี้ยังมีลูกค้ารายอื่นใช้งานอยู่ จึงยังเปลี่ยนรหัสผ่านไม่ได้",
+  "Invalid target product": "ปลายทางต้องเป็นสินค้าที่ส่งจากสต็อกอัตโนมัติ",
+  "Target credentials differ":
+    "ปลายทางมีเมล/จอเดียวกันแต่ข้อมูลส่งมอบไม่ตรงกัน กรุณาตรวจสอบก่อน",
+  "Target stock full": "สต็อกปลายทางเต็มแล้ว",
+  "Other customers active": "อีเมลนี้ยังมีลูกค้ารายอื่นใช้งานอยู่ จึงยังเปลี่ยนรหัสผ่านไม่ได้",
 };
 export async function GET(req: Request) {
   try {
@@ -26,8 +29,7 @@ export async function GET(req: Request) {
       p_order: id,
       p_actor: actor.id,
     });
-    if (error)
-      return fail(messages[error.message] || "โหลดข้อมูลสต็อกไม่สำเร็จ");
+    if (error) return fail(messages[error.message] || "โหลดข้อมูลสต็อกไม่สำเร็จ");
     return Response.json(
       { data },
       { headers: { "Cache-Control": "no-store" } },
@@ -46,8 +48,13 @@ export async function POST(req: Request) {
       password = "",
       secret = "",
       allowEarly = false,
+      targetProductId = null,
     } = await req.json();
     if (
+      (targetProductId !== null &&
+        (typeof targetProductId !== "string" ||
+          !targetProductId ||
+          targetProductId.length > 200)) ||
       typeof allowEarly !== "boolean" ||
       !uuid(orderId) ||
       !["restock", "remove"].includes(action) ||
@@ -58,14 +65,20 @@ export async function POST(req: Request) {
       secret.length > 16384
     )
       return fail("ข้อมูลไม่ถูกต้อง");
-    const { data, error } = await admin().rpc("admin_manage_order_inventory", {
-      p_order: orderId,
-      p_actor: actor.id,
-      p_action: action,
-      p_password: password,
-      p_secret: secret,
-      p_allow_early: allowEarly,
-    });
+    const { data, error } = await admin().rpc(
+      targetProductId
+        ? "admin_restock_to_product"
+        : "admin_manage_order_inventory",
+      {
+        p_order: orderId,
+        p_actor: actor.id,
+        p_action: action,
+        p_password: password,
+        p_secret: secret,
+        p_allow_early: allowEarly,
+        ...(targetProductId ? { p_target_product: targetProductId } : {}),
+      },
+    );
     if (error)
       return fail(
         messages[error.message] ||

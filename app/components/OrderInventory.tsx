@@ -28,7 +28,11 @@ export default function OrderInventory({
     [action, setAction] = useState(""),
     [editPassword, setEditPassword] = useState(false),
     [password, setPassword] = useState(""),
-    [secret, setSecret] = useState("");
+    [secret, setSecret] = useState(""),
+    [targetProduct, setTargetProduct] = useState(""),
+    [products, setProducts] = useState<
+      { id: string; title: string; delivery_type: string }[]
+    >([]);
   async function api(method: string, body?: object) {
     const { data } = await db.auth.getSession();
     if (!data.session) throw Error("กรุณาเข้าสู่ระบบใหม่");
@@ -52,7 +56,13 @@ export default function OrderInventory({
     setBusy(true);
     setMessage("");
     try {
-      const data = await api("GET");
+      const [data, p] = await Promise.all([
+        api("GET"),
+        db.from("products").select("id,title,delivery_type").order("title"),
+      ]);
+      if (p.error) throw Error("โหลดรายการสินค้าปลายทางไม่สำเร็จ");
+      setProducts(p.data || []);
+      setTargetProduct("");
       setSource(data);
       setSecret(data.secret || "");
     } catch (e) {
@@ -80,6 +90,7 @@ export default function OrderInventory({
       const data = await api("POST", {
         orderId,
         action,
+        targetProductId: action === "restock" ? targetProduct || null : null,
         allowEarly:
           action === "restock" && !!source?.requires_early_confirmation,
         password: action === "restock" && editPassword ? password : "",
@@ -124,10 +135,7 @@ export default function OrderInventory({
                 {source.has_screen && ` · Screen: ${source.screen}`}
               </p>
             )}
-            <p>
-              เก็บประวัติและข้อมูลที่ส่งให้ลูกค้าเดิมไว้
-              การจัดการนี้ไม่เปลี่ยนยอดเงินของลูกค้า
-            </p>
+            <p>เก็บประวัติและข้อมูลที่ส่งให้ลูกค้าเดิมไว้ การจัดการนี้ไม่เปลี่ยนยอดเงินของลูกค้า</p>
             <fieldset disabled={busy} className="admin-fieldset">
               <label>
                 การจัดการสต็อก
@@ -141,11 +149,28 @@ export default function OrderInventory({
                   <option value="restock" disabled={!source.can_restock}>
                     คืนสินค้า 1 สิทธิ์เข้าสต็อก
                   </option>
-                  <option value="remove">
-                    เอาสินค้ารายการนี้ออก / ไม่คืนสต็อก
-                  </option>
+                  <option value="remove">เอาสินค้ารายการนี้ออก / ไม่คืนสต็อก</option>
                 </select>
               </label>
+              {action === "restock" && (
+                <label>
+                  สินค้า / แพ็กเกจปลายทาง
+                  <select
+                    aria-label="สินค้า / แพ็กเกจปลายทาง"
+                    value={targetProduct}
+                    onChange={(e) => setTargetProduct(e.target.value)}
+                  >
+                    <option value="">คืนเข้าสินค้าเดิม</option>
+                    {products
+                      .filter((p) => p.delivery_type === "code")
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.title}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
               {!source.can_restock && (
                 <p>รายการนี้ไม่มีสต็อกต้นทางให้คืน กรุณาตรวจสอบข้อมูล</p>
               )}

@@ -1,4 +1,5 @@
 "use client";
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   chatGPTSubcategories,
@@ -83,7 +84,9 @@ export default function Catalog({
     ? products.filter((p) => (p.category_id || "uncategorized") === selected.id)
     : [];
   const subcategories = [
-    ...chatGPTSubcategories,
+    ...chatGPTSubcategories.filter((g) =>
+      categoryItems.some((p) => p.subcategory === g.id),
+    ),
     ...(categoryItems.some((p) => !p.subcategory)
       ? [{ id: "other", name: "แพ็กเกจอื่น" }]
       : []),
@@ -92,7 +95,10 @@ export default function Catalog({
     !!selected &&
     (selected.name.trim().toLowerCase() === "chatgpt" ||
       categoryItems.some((p) => !!p.subcategory));
-  const subgroup = subcategories.find(
+  const subgroup = [
+    ...chatGPTSubcategories,
+    { id: "other", name: "แพ็กเกจอื่น" },
+  ].find(
     (g) => g.id === (path[1] === "group" ? path[2] : product?.subcategory),
   );
   const items = subgroup
@@ -170,9 +176,7 @@ export default function Catalog({
                   )}
                   <div>
                     <h3>{c.name}</h3>
-                    <p>
-                      {c.description || `เลือกแพ็กเกจ ${c.name} ที่เหมาะกับคุณ`}
-                    </p>
+                    <p>{c.description || `เลือกแพ็กเกจ ${c.name} ที่เหมาะกับคุณ`}</p>
                     <small>
                       {ps.length} แพ็กเกจ
                       {ps.length > 0 &&
@@ -184,9 +188,7 @@ export default function Catalog({
               );
             })}
           </div>
-          {groups.length === 0 && (
-            <p>ร้านกำลังเตรียมสินค้า กรุณากลับมาอีกครั้ง</p>
-          )}
+          {groups.length === 0 && <p>ร้านกำลังเตรียมสินค้า กรุณากลับมาอีกครั้ง</p>}
         </>
       ) : product ? (
         <>
@@ -196,8 +198,11 @@ export default function Catalog({
               subgroup ? groupLink(selected.id, subgroup.id) : link(selected.id)
             }
           >
-            ← กลับไปเลือกแพ็กเกจ {selected.name}
-            {subgroup ? " · " + subgroup.name : ""}
+            <ArrowLeft size={18} aria-hidden="true" />
+            <span>
+              กลับไปเลือกแพ็กเกจ {selected.name}
+              {subgroup ? " · " + subgroup.name : ""}
+            </span>
           </a>
           <article className="panel product-detail">
             {product.image_url && (
@@ -211,8 +216,7 @@ export default function Catalog({
               <span className="status">{availability(product)}</span>
               <h2>{product.title}</h2>
               <p className="product-description">
-                {product.description ||
-                  "ติดต่อร้านเพื่อสอบถามรายละเอียดเพิ่มเติม"}
+                {product.description || "ติดต่อร้านเพื่อสอบถามรายละเอียดเพิ่มเติม"}
               </p>
               <p>
                 {product.delivery_type === "code"
@@ -256,9 +260,7 @@ export default function Catalog({
               </div>
               {!user && (
                 <p>
-                  {authChecking
-                    ? "กำลังตรวจสอบบัญชี…"
-                    : "กรุณาเข้าสู่ระบบก่อนสั่งซื้อ"}
+                  {authChecking ? "กำลังตรวจสอบบัญชี…" : "กรุณาเข้าสู่ระบบก่อนสั่งซื้อ"}
                 </p>
               )}
             </div>
@@ -267,12 +269,14 @@ export default function Catalog({
       ) : hasSubcategories && !subgroup ? (
         <>
           <a className="catalog-back" href="#catalog">
-            ← หมวดหมู่ทั้งหมด
+            <ArrowLeft size={18} aria-hidden="true" />
+            <span>หมวดหมู่ทั้งหมด</span>
           </a>
           <div className="section-title">
             <h2>{selected.name} · เลือกประเภท</h2>
-            <p>เลือกหาร 4 หาร 3 หรือส่วนตัว แล้วเลือกระยะเวลาที่ต้องการ</p>
+            <p>เลือกประเภทสินค้า แล้วเลือกระยะเวลาที่ต้องการ</p>
           </div>
+          {subcategories.length === 0 && <p>ยังไม่มีสินค้าในหมวดนี้</p>}
           <div className="grid category-grid subcategory-grid">
             {subcategories.map((g) => {
               const ps = categoryItems.filter(
@@ -316,7 +320,10 @@ export default function Catalog({
             className="catalog-back"
             href={subgroup ? link(selected.id) : "#catalog"}
           >
-            ← {subgroup ? "เลือกประเภท " + selected.name : "หมวดหมู่ทั้งหมด"}
+            <ArrowLeft size={18} aria-hidden="true" />
+            <span>
+              {subgroup ? "เลือกประเภท " + selected.name : "หมวดหมู่ทั้งหมด"}
+            </span>
           </a>
           <div className="section-title">
             <h2>
@@ -324,8 +331,7 @@ export default function Catalog({
               {subgroup ? " · " + subgroup.name : ""}
             </h2>
             <p className="product-description">
-              {selected.description ||
-                "เลือกแพ็กเกจเพื่อดูรายละเอียดและสั่งซื้อ"}
+              {selected.description || "เลือกแพ็กเกจเพื่อดูรายละเอียดและสั่งซื้อ"}
             </p>
           </div>
           <div className="grid">
