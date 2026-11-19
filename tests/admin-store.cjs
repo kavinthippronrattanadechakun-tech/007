@@ -233,6 +233,7 @@ const defaults = {
       assert.equal(body.action, "restock");
       assert.equal(body.password, "next-password");
       assert.equal(body.targetProductId, "test");
+      assert.equal(body.deliveryInfo, "new restock info");
       inventoryCalls++;
       return r.fulfill({ json: { data: { ok: true, action: "restock" } } });
     }
@@ -245,6 +246,7 @@ const defaults = {
           has_screen: false,
           active_others: 0,
           can_restock: true,
+          delivery_info: "old restock info",
           action: null,
         },
       },
@@ -435,6 +437,8 @@ const defaults = {
     .click();
   await p.getByLabel("การจัดการสต็อก", { exact: true }).selectOption("restock");
   await p.getByLabel("สินค้า / แพ็กเกจปลายทาง", {exact:true}).selectOption("test");
+  assert.equal(await p.getByLabel("ข้อมูลเพิ่มเติมสำหรับขายครั้งถัดไป (ถ้ามี)", {exact:true}).inputValue(), "old restock info");
+  await p.getByLabel("ข้อมูลเพิ่มเติมสำหรับขายครั้งถัดไป (ถ้ามี)", {exact:true}).fill("new restock info");
   await p.getByLabel("แก้ไขรหัสผ่านก่อนคืนสต็อก", { exact: true }).check();
   await p
     .getByLabel("รหัสผ่านสำหรับผู้ซื้อครั้งถัดไป", { exact: true })

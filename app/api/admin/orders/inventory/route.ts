@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     if (!actor || !(await isAdmin(actor.id))) return fail("ไม่มีสิทธิ์", 403);
     const id = new URL(req.url).searchParams.get("orderId");
     if (!uuid(id)) return fail("รหัสคำสั่งซื้อไม่ถูกต้อง");
-    const { data, error } = await admin().rpc("admin_order_inventory", {
+    const { data, error } = await admin().rpc("admin_order_inventory_details", {
       p_order: id,
       p_actor: actor.id,
     });
@@ -49,8 +49,11 @@ export async function POST(req: Request) {
       secret = "",
       allowEarly = false,
       targetProductId = null,
+      deliveryInfo = null,
     } = await req.json();
     if (
+      (deliveryInfo !== null &&
+        (typeof deliveryInfo !== "string" || deliveryInfo.length > 16384)) ||
       (targetProductId !== null &&
         (typeof targetProductId !== "string" ||
           !targetProductId ||
@@ -66,9 +69,11 @@ export async function POST(req: Request) {
     )
       return fail("ข้อมูลไม่ถูกต้อง");
     const { data, error } = await admin().rpc(
-      targetProductId
-        ? "admin_restock_to_product"
-        : "admin_manage_order_inventory",
+      deliveryInfo !== null && action === "restock"
+        ? "admin_restock_with_details"
+        : targetProductId
+          ? "admin_restock_to_product"
+          : "admin_manage_order_inventory",
       {
         p_order: orderId,
         p_actor: actor.id,
@@ -76,7 +81,12 @@ export async function POST(req: Request) {
         p_password: password,
         p_secret: secret,
         p_allow_early: allowEarly,
-        ...(targetProductId ? { p_target_product: targetProductId } : {}),
+        ...(targetProductId || (deliveryInfo !== null && action === "restock")
+          ? { p_target_product: targetProductId }
+          : {}),
+        ...(deliveryInfo !== null && action === "restock"
+          ? { p_delivery_info: deliveryInfo }
+          : {}),
       },
     );
     if (error)
