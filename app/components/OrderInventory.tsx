@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Source = {
   kind: "account" | "code" | "manual";
   email?: string;
+  delivery_info?: string;
   screen?: string;
   has_screen?: boolean;
   remaining?: number;
@@ -29,6 +30,7 @@ export default function OrderInventory({
     [editPassword, setEditPassword] = useState(false),
     [password, setPassword] = useState(""),
     [secret, setSecret] = useState(""),
+    [deliveryInfo, setDeliveryInfo] = useState(""),
     [targetProduct, setTargetProduct] = useState(""),
     [products, setProducts] = useState<
       { id: string; title: string; delivery_type: string }[]
@@ -65,6 +67,7 @@ export default function OrderInventory({
       setTargetProduct("");
       setSource(data);
       setSecret(data.secret || "");
+      setDeliveryInfo(data.delivery_info || "");
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -90,6 +93,10 @@ export default function OrderInventory({
       const data = await api("POST", {
         orderId,
         action,
+        deliveryInfo:
+          action === "restock" && source?.kind === "account"
+            ? deliveryInfo
+            : null,
         targetProductId: action === "restock" ? targetProduct || null : null,
         allowEarly:
           action === "restock" && !!source?.requires_early_confirmation,
@@ -182,6 +189,20 @@ export default function OrderInventory({
               )}
               {action === "restock" && source.kind === "account" && (
                 <>
+                  <label>
+                    ข้อมูลเพิ่มเติมสำหรับขายครั้งถัดไป (ถ้ามี)
+                    <textarea
+                      aria-label="ข้อมูลเพิ่มเติมสำหรับขายครั้งถัดไป (ถ้ามี)"
+                      maxLength={16384}
+                      value={deliveryInfo}
+                      onChange={(e) => setDeliveryInfo(e.target.value)}
+                    />
+                  </label>
+                  <p>
+                    ลบข้อความให้ว่างได้ หากไม่ต้องการข้อมูลเพิ่มเติม
+                    การแก้ไขมีผลกับสต็อกเมล/จอชุดปลายทางที่พร้อมขาย
+                    ประวัติที่เคยส่งให้ลูกค้าเดิมคงเดิม
+                  </p>
                   <label className="checkbox">
                     <input
                       type="checkbox"
